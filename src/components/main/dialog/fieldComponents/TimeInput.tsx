@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
@@ -9,7 +10,7 @@ export interface TimeInputProps {
   className?: string
 }
 
-export function TimeInput({
+export const TimeInput = React.memo(function TimeInput({
   value,
   onChange,
   isSmall = false,
@@ -24,11 +25,12 @@ export function TimeInput({
       disabled={disabled}
       className={cn(
         isSmall ? "h-7 flex-1" : "h-8 w-full",
-        "font-mono text-xs",
+        "text-xs",
         className
       )}
     />
   )
-}
+})
 
 export default TimeInput
+

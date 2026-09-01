@@ -20,6 +20,15 @@ import { downloadSilicFile } from "@/lib/localFiles/downloadFile"
 import { toast } from "@/components/ui/toast"
 import { useLang } from "./LangContext"
 import { LoadingDialog } from "@/components/ui/loading-dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 import { useEntity } from "./EntityContext"
 import { useConnection } from "./ConnectionContext"
@@ -36,6 +45,17 @@ export interface ProjectStorageContextType {
   ) => Promise<AttachmentMeta>
   updateAttachmentCaption: (id: string, caption: string) => Promise<void>
   removeAttachment: (id: string) => Promise<void>
+  duplicateFile: (
+    oldId: string,
+    customId?: string,
+    caption?: string
+  ) => Promise<AttachmentMeta | null>
+  duplicateAttachment: (
+    oldId: string,
+    customId?: string,
+    caption?: string
+  ) => Promise<AttachmentMeta | null>
+  cleanupOrphanedAttachments: () => Promise<number>
   exportProjectSilic: (customName?: string) => Promise<void>
   importProjectSilic: (file: File) => Promise<void>
   newProject: () => Promise<void>
@@ -48,6 +68,38 @@ export interface ProjectStorageContextType {
 
 export const ProjectStorageContext =
   React.createContext<ProjectStorageContextType | null>(null)
+
+function getReferencedAttachmentIds(
+  entitiesList: Entity[],
+  connectionsList: Connection[]
+): Set<string> {
+  const referenced = new Set<string>()
+
+  const scanRecords = (records?: any[]) => {
+    if (!Array.isArray(records)) return
+    for (const r of records) {
+      if (!r || r.value === undefined || r.value === null) continue
+      const isMedia =
+        r.type && ["image", "video", "audio", "file"].includes(r.type)
+      if (!isMedia) continue
+
+      if (r.isArray && Array.isArray(r.value)) {
+        for (const item of r.value) {
+          if (typeof item === "string" && item.trim() !== "") {
+            referenced.add(item.trim())
+          }
+        }
+      } else if (typeof r.value === "string" && r.value.trim() !== "") {
+        referenced.add(r.value.trim())
+      }
+    }
+  }
+
+  entitiesList.forEach((e) => scanRecords(e.records))
+  connectionsList.forEach((c) => scanRecords(c.records))
+
+  return referenced
+}
 
 export function ProjectStorageProvider({
   children,
@@ -68,6 +120,8 @@ export function ProjectStorageProvider({
     isOpen: false,
     message: undefined,
   })
+  const [quotaExceededAlertOpen, setQuotaExceededAlertOpen] =
+    React.useState(false)
 
   const [isHydrated, setIsHydrated] = React.useState(false)
 
@@ -78,6 +132,84 @@ export function ProjectStorageProvider({
   const hideLoading = React.useCallback(() => {
     setLoadingState({ isOpen: false, message: undefined })
   }, [])
+
+  // Cleanup attachments in IndexedDB that are no longer referenced in any entity or connection
+  const cleanupOrphanedAttachments = React.useCallback(async (): Promise<number> => {
+    try {
+      const referenced = getReferencedAttachmentIds(entities, connections)
+      const allStored = await getAllAttachments()
+      const orphaned = allStored.filter((item) => !referenced.has(item.id))
+
+      if (orphaned.length === 0) {
+        return 0
+      }
+
+      for (const item of orphaned) {
+        await dbDeleteAttachment(item.id)
+      }
+
+      const orphanedIdSet = new Set(orphaned.map((o) => o.id))
+      setAttachments((prev) => prev.filter((a) => !orphanedIdSet.has(a.id)))
+
+      toast.add({
+        type: "info",
+        title: t("projectStorage.orphansCleaned", { count: orphaned.length }),
+      })
+
+      return orphaned.length
+    } catch (err) {
+      console.error("Failed to cleanup orphaned attachments:", err)
+      return 0
+    }
+  }, [entities, connections, t])
+
+  // Check storage quota with navigator.storage.estimate and cleanup orphaned files if needed
+  const checkStorageQuotaAndPrepare = React.useCallback(
+    async (requiredBytes: number): Promise<boolean> => {
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.storage &&
+        navigator.storage.estimate
+      ) {
+        try {
+          const estimate = await navigator.storage.estimate()
+          const quota = estimate.quota ?? 0
+          const usage = estimate.usage ?? 0
+          const available = quota > usage ? quota - usage : 0
+
+          // Safety margin: 5MB for IndexedDB metadata/indexes
+          const SAFETY_MARGIN = 5 * 1024 * 1024
+          if (requiredBytes + SAFETY_MARGIN > available) {
+            // Storage quota is insufficient, attempt cleaning up orphaned unreferenced files
+            const cleaned = await cleanupOrphanedAttachments()
+            if (cleaned > 0) {
+              const newEstimate = await navigator.storage.estimate()
+              const newQuota = newEstimate.quota ?? 0
+              const newUsage = newEstimate.usage ?? 0
+              const newAvailable = newQuota > newUsage ? newQuota - newUsage : 0
+
+              if (requiredBytes + SAFETY_MARGIN <= newAvailable) {
+                return true
+              }
+            }
+
+            // Still full after cleanup
+            setQuotaExceededAlertOpen(true)
+            toast.add({
+              type: "error",
+              title: t("projectStorage.quotaExceededTitle"),
+              description: t("projectStorage.quotaExceededDesc"),
+            })
+            return false
+          }
+        } catch (err) {
+          console.warn("Storage quota estimation failed:", err)
+        }
+      }
+      return true
+    },
+    [cleanupOrphanedAttachments, t]
+  )
 
   // Hydrate on mount from IndexedDB app-state
   React.useEffect(() => {
@@ -135,13 +267,23 @@ export function ProjectStorageProvider({
       customId?: string,
       caption?: string
     ): Promise<AttachmentMeta> => {
+      // 1. Pre-estimate storage quota and cleanup unreferenced files if needed
+      const hasSpace = await checkStorageQuotaAndPrepare(file.size)
+      if (!hasSpace) {
+        throw new Error("Storage quota exceeded")
+      }
+
       showLoading(t("common.processing"))
       try {
         const id = customId || crypto.randomUUID()
         const mimeType = file.type || "application/octet-stream"
         const size = file.size
+        const defaultCaption =
+          file.name && file.name.trim() !== "" ? file.name.trim() : id
         const finalCaption =
-          caption !== undefined && caption.trim() !== "" ? caption.trim() : id
+          caption !== undefined && caption.trim() !== ""
+            ? caption.trim()
+            : defaultCaption
 
         const meta: AttachmentMeta = {
           id,
@@ -150,13 +292,30 @@ export function ProjectStorageProvider({
           caption: finalCaption,
         }
 
-        await saveAttachment({
-          id,
-          mimeType,
-          size,
-          blob: file,
-          caption: finalCaption,
-        })
+        try {
+          await saveAttachment({
+            id,
+            mimeType,
+            size,
+            blob: file,
+            caption: finalCaption,
+          })
+        } catch (dbErr) {
+          // If save failed due to quota, attempt cleanup and retry once
+          const cleaned = await cleanupOrphanedAttachments()
+          if (cleaned > 0) {
+            await saveAttachment({
+              id,
+              mimeType,
+              size,
+              blob: file,
+              caption: finalCaption,
+            })
+          } else {
+            setQuotaExceededAlertOpen(true)
+            throw dbErr
+          }
+        }
 
         setAttachments((prev) => {
           const filtered = prev.filter((a) => a.id !== id)
@@ -167,7 +326,13 @@ export function ProjectStorageProvider({
         hideLoading()
       }
     },
-    [showLoading, hideLoading, t]
+    [
+      checkStorageQuotaAndPrepare,
+      showLoading,
+      hideLoading,
+      cleanupOrphanedAttachments,
+      t,
+    ]
   )
 
   // Update attachment caption
@@ -202,6 +367,85 @@ export function ProjectStorageProvider({
     await dbDeleteAttachment(id)
     setAttachments((prev) => prev.filter((a) => a.id !== id))
   }, [])
+
+  // Duplicate file/attachment
+  const duplicateFile = React.useCallback(
+    async (
+      oldId: string,
+      customId?: string,
+      caption?: string
+    ): Promise<AttachmentMeta | null> => {
+      if (!oldId || typeof oldId !== "string" || oldId.trim() === "") {
+        return null
+      }
+      try {
+        const stored = await getAttachment(oldId.trim())
+        if (!stored || !stored.blob) {
+          return null
+        }
+
+        // 1. Pre-estimate storage quota
+        const hasSpace = await checkStorageQuotaAndPrepare(stored.size)
+        if (!hasSpace) {
+          return null
+        }
+
+        const newId = customId || crypto.randomUUID()
+        const mimeType = stored.mimeType || "application/octet-stream"
+        const size = stored.size
+        const finalCaption =
+          caption !== undefined
+            ? caption
+            : stored.caption !== undefined
+            ? stored.caption
+            : newId
+
+        const newBlob = stored.blob.slice(0, stored.blob.size, stored.blob.type)
+
+        const meta: AttachmentMeta = {
+          id: newId,
+          mimeType,
+          size,
+          caption: finalCaption,
+        }
+
+        try {
+          await saveAttachment({
+            id: newId,
+            mimeType,
+            size,
+            blob: newBlob,
+            caption: finalCaption,
+          })
+        } catch (dbErr) {
+          const cleaned = await cleanupOrphanedAttachments()
+          if (cleaned > 0) {
+            await saveAttachment({
+              id: newId,
+              mimeType,
+              size,
+              blob: newBlob,
+              caption: finalCaption,
+            })
+          } else {
+            setQuotaExceededAlertOpen(true)
+            throw dbErr
+          }
+        }
+
+        setAttachments((prev) => {
+          const filtered = prev.filter((a) => a.id !== newId)
+          return [...filtered, meta]
+        })
+
+        return meta
+      } catch (err) {
+        console.error("Failed to duplicate attachment:", err)
+        return null
+      }
+    },
+    [checkStorageQuotaAndPrepare, cleanupOrphanedAttachments]
+  )
 
   // Export to .silic
   const exportProjectSilic = React.useCallback(
@@ -521,6 +765,9 @@ export function ProjectStorageProvider({
       addAttachment,
       updateAttachmentCaption,
       removeAttachment,
+      duplicateFile,
+      duplicateAttachment: duplicateFile,
+      cleanupOrphanedAttachments,
       exportProjectSilic,
       importProjectSilic,
       newProject,
@@ -536,6 +783,8 @@ export function ProjectStorageProvider({
       addAttachment,
       updateAttachmentCaption,
       removeAttachment,
+      duplicateFile,
+      cleanupOrphanedAttachments,
       exportProjectSilic,
       importProjectSilic,
       newProject,
@@ -554,6 +803,26 @@ export function ProjectStorageProvider({
         open={loadingState.isOpen}
         message={loadingState.message}
       />
+      <AlertDialog
+        open={quotaExceededAlertOpen}
+        onOpenChange={setQuotaExceededAlertOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive font-semibold">
+              {t("projectStorage.quotaExceededTitle")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("projectStorage.quotaExceededDesc")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setQuotaExceededAlertOpen(false)}>
+              {t("common.ok")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ProjectStorageContext.Provider>
   )
 }

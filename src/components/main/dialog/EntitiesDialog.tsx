@@ -1,7 +1,9 @@
 import * as React from "react"
 import { CirclePlus, Sparkles } from "lucide-react"
+
 import type {
   Entity,
+  Connection,
   Record as EntityRecord,
   Type,
   Template,
@@ -12,6 +14,8 @@ import { useTemplate } from "@/contexts/TemplateContext"
 import { useProjectStorage } from "@/contexts/ProjectStorageContext"
 import { useLang } from "@/contexts/LangContext"
 import { toast } from "@/components/ui/toast"
+import { duplicateRecordFiles, deleteRecordFiles } from "@/lib/utils"
+import { castRecordValue } from "@/lib/template-utils"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -33,7 +37,6 @@ import {
 import { FieldSet, FieldLegend, FieldGroup } from "@/components/ui/field"
 import { TemplateSelect } from "../queryBlocks/components/TemplateSelect"
 import {
-  IdField,
   RecordItemEditor,
   NeighboursListField,
   type RecordFormState,
@@ -171,20 +174,24 @@ function alignRecordsWithTemplate(
       const existing = existingRecordsMap.get(tr.name)
       if (existing) {
         const isArray = Boolean(tr.isArray)
-        let val = normalizeRecordValue({
-          type: existing.type || tr.type,
-          isArray: Boolean(existing.isArray),
-          value: existing.value,
+        const oldType = existing.type || tr.type
+        const newType = tr.type
+        const castedVal = castRecordValue(
+          existing.value,
+          oldType,
+          newType,
+          Boolean(existing.isArray),
+          isArray
+        )
+        const val = normalizeRecordValue({
+          type: newType,
+          isArray,
+          value: castedVal,
         })
-        if (isArray && !Array.isArray(val)) {
-          val = val !== "" && val !== undefined ? [String(val)] : [""]
-        } else if (!isArray && Array.isArray(val)) {
-          val = String(val[0] || "")
-        }
         return {
           id: existing.id || crypto.randomUUID(),
           name: tr.name,
-          type: tr.type,
+          type: newType,
           isArray,
           value: val,
         }
@@ -259,9 +266,14 @@ export function EntitiesDialog({
   onDelete,
 }: EntitiesDialogProps) {
   const { put, delete: deleteEntity } = useEntity()
-  const { connections } = useConnection()
+  const {
+    connections,
+    put: putConnection,
+    delete: deleteConnection,
+  } = useConnection()
   const { templates } = useTemplate()
-  const { removeAttachment } = useProjectStorage()
+
+  const { removeAttachment, duplicateFile } = useProjectStorage()
   const { t } = useLang()
 
   const [id, setId] = React.useState<string>("")
@@ -323,18 +335,23 @@ export function EntitiesDialog({
       } else {
         const draft = loadEntityDraft()
         if (draft) {
-          setId(draft.id || `entity-${crypto.randomUUID().slice(0, 8)}`)
+          const cleanId =
+            draft.id && !draft.id.startsWith("entity-")
+              ? draft.id
+              : crypto.randomUUID()
+          setId(cleanId)
           setTemplateId(draft.template)
           setSelectedTemplateToApply(
             draft.template ? [draft.template] : undefined
           )
           setRecords(draft.records || [])
         } else {
-          setId(`entity-${crypto.randomUUID().slice(0, 8)}`)
+          setId(crypto.randomUUID())
           setTemplateId(undefined)
           setSelectedTemplateToApply(undefined)
           setRecords([])
         }
+
         setEntityConns([])
       }
     }
@@ -370,7 +387,7 @@ export function EntitiesDialog({
       )
     } else {
       clearEntityDraft()
-      setId(`entity-${crypto.randomUUID().slice(0, 8)}`)
+      setId(crypto.randomUUID())
       setTemplateId(undefined)
       setSelectedTemplateToApply(undefined)
       setRecords([])
@@ -382,8 +399,9 @@ export function EntitiesDialog({
     setShowDeleteAlert(true)
   }
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!defaultValue?.id) return
+    await deleteRecordFiles(defaultValue.records, removeAttachment)
     if (onDelete) {
       onDelete(defaultValue.id)
     } else {
@@ -403,14 +421,27 @@ export function EntitiesDialog({
   const handleApplyTemplate = () => {
     const targetId = Array.isArray(selectedTemplateToApply)
       ? selectedTemplateToApply[0]
-      : selectedTemplateToApply
+      : selectedTemplateToApply || templateId
 
-    if (!targetId || targetId === "__ALL__") return
+    if (!targetId || targetId === "__ALL__" || targetId === "__NONE__") {
+      setTemplateId(undefined)
+      setSelectedTemplateToApply(undefined)
+      toast.add({
+        type: "info",
+        title: t("entityDialog.noTemplateApplied"),
+      })
+      return
+    }
 
     const tpl = templates.find((tItem) => tItem.id === targetId)
-    if (!tpl) return
+    if (!tpl) {
+      setTemplateId(undefined)
+      setSelectedTemplateToApply(undefined)
+      return
+    }
 
     setTemplateId(tpl.id)
+    setSelectedTemplateToApply([tpl.id])
     setRecords(alignRecordsWithTemplate(records, tpl))
     toast.add({
       type: "info",
@@ -419,7 +450,7 @@ export function EntitiesDialog({
   }
 
   // Record CRUD Handlers
-  const handleAddRecord = () => {
+  const handleAddRecord = React.useCallback(() => {
     setRecords((prev) => [
       ...prev,
       {
@@ -430,56 +461,64 @@ export function EntitiesDialog({
         value: "",
       },
     ])
-  }
+  }, [])
 
-  const handleUpdateRecord = (
-    index: number,
-    partial: Partial<RecordFormState>
-  ) => {
-    setRecords((prev) => {
-      const next = [...prev]
-      const cur = next[index]
-      let val = partial.value !== undefined ? partial.value : cur.value
+  const handleUpdateRecord = React.useCallback(
+    (index: number, partial: Partial<RecordFormState>) => {
+      setRecords((prev) => {
+        const next = [...prev]
+        const cur = next[index]
+        if (!cur) return prev
+        let val = partial.value !== undefined ? partial.value : cur.value
 
-      if (partial.isArray !== undefined && partial.isArray !== cur.isArray) {
-        if (partial.isArray) {
-          val = val !== "" && val !== undefined ? [String(val)] : [""]
-        } else {
-          val = Array.isArray(val) ? String(val[0] || "") : String(val)
+        if (partial.isArray !== undefined && partial.isArray !== cur.isArray) {
+          if (partial.isArray) {
+            val = val !== "" && val !== undefined ? [String(val)] : [""]
+          } else {
+            val = Array.isArray(val) ? String(val[0] || "") : String(val)
+          }
         }
-      }
 
-      next[index] = {
-        ...cur,
-        ...partial,
-        value: val,
-      }
-      return next
-    })
-  }
-
-  const handleRemoveRecord = (index: number) => {
-    setRecords((prev) => {
-      const target = prev[index]
-      if (target && ["image", "video", "audio", "file"].includes(target.type)) {
-        if (Array.isArray(target.value)) {
-          target.value.forEach((v) => {
-            if (v && typeof v === "string") {
-              removeAttachment(v).catch(() => {})
-            }
-          })
-        } else if (target.value && typeof target.value === "string") {
-          removeAttachment(target.value).catch(() => {})
+        next[index] = {
+          ...cur,
+          ...partial,
+          value: val,
         }
-      }
-      return prev.filter((_, i) => i !== index)
-    })
-  }
+        return next
+      })
+    },
+    []
+  )
 
-  const handleAddArrayItem = (recordIndex: number) => {
+  const handleRemoveRecord = React.useCallback(
+    (index: number) => {
+      setRecords((prev) => {
+        const target = prev[index]
+        if (
+          target &&
+          ["image", "video", "audio", "file"].includes(target.type)
+        ) {
+          if (Array.isArray(target.value)) {
+            target.value.forEach((v) => {
+              if (v && typeof v === "string") {
+                removeAttachment(v).catch(() => {})
+              }
+            })
+          } else if (target.value && typeof target.value === "string") {
+            removeAttachment(target.value).catch(() => {})
+          }
+        }
+        return prev.filter((_, i) => i !== index)
+      })
+    },
+    [removeAttachment]
+  )
+
+  const handleAddArrayItem = React.useCallback((recordIndex: number) => {
     setRecords((prev) => {
       const next = [...prev]
       const cur = next[recordIndex]
+      if (!cur) return prev
       const currentArr = Array.isArray(cur.value) ? [...cur.value] : []
       next[recordIndex] = {
         ...cur,
@@ -487,83 +526,197 @@ export function EntitiesDialog({
       }
       return next
     })
-  }
+  }, [])
 
-  const handleUpdateArrayItem = (
-    recordIndex: number,
-    itemIndex: number,
-    newVal: string
-  ) => {
-    setRecords((prev) => {
-      const next = [...prev]
-      const cur = next[recordIndex]
-      const currentArr = Array.isArray(cur.value) ? [...cur.value] : [""]
-      currentArr[itemIndex] = newVal
-      next[recordIndex] = {
-        ...cur,
-        value: currentArr,
-      }
-      return next
-    })
-  }
+  const handleUpdateArrayItem = React.useCallback(
+    (recordIndex: number, itemIndex: number, newVal: string) => {
+      setRecords((prev) => {
+        const next = [...prev]
+        const cur = next[recordIndex]
+        if (!cur) return prev
+        const currentArr = Array.isArray(cur.value) ? [...cur.value] : [""]
+        currentArr[itemIndex] = newVal
+        next[recordIndex] = {
+          ...cur,
+          value: currentArr,
+        }
+        return next
+      })
+    },
+    []
+  )
 
-  const handleRemoveArrayItem = (recordIndex: number, itemIndex: number) => {
-    setRecords((prev) => {
-      const next = [...prev]
-      const cur = next[recordIndex]
-      if (!cur) return prev
-      const currentArr = Array.isArray(cur.value) ? [...cur.value] : []
-      const removingVal = currentArr[itemIndex]
-      if (
-        removingVal &&
-        typeof removingVal === "string" &&
-        ["image", "video", "audio", "file"].includes(cur.type)
-      ) {
-        removeAttachment(removingVal).catch(() => {})
-      }
-      const filtered = currentArr.filter((_, i) => i !== itemIndex)
-      next[recordIndex] = {
-        ...cur,
-        value: filtered.length > 0 ? filtered : [""],
-      }
-      return next
-    })
-  }
+  const handleRemoveArrayItem = React.useCallback(
+    (recordIndex: number, itemIndex: number) => {
+      setRecords((prev) => {
+        const next = [...prev]
+        const cur = next[recordIndex]
+        if (!cur) return prev
+        const currentArr = Array.isArray(cur.value) ? [...cur.value] : []
+        const removingVal = currentArr[itemIndex]
+        if (
+          removingVal &&
+          typeof removingVal === "string" &&
+          ["image", "video", "audio", "file"].includes(cur.type)
+        ) {
+          removeAttachment(removingVal).catch(() => {})
+        }
+        const filtered = currentArr.filter((_, i) => i !== itemIndex)
+        next[recordIndex] = {
+          ...cur,
+          value: filtered.length > 0 ? filtered : [""],
+        }
+        return next
+      })
+    },
+    [removeAttachment]
+  )
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    const payload: Entity = {
-      id: id.trim() || `entity-${crypto.randomUUID().slice(0, 8)}`,
-      template: templateId,
-      records: records.map((r): EntityRecord => {
-        let finalValue: any = r.value
+    const validRecords: EntityRecord[] = []
 
-        if (r.isArray) {
-          const arr = Array.isArray(r.value) ? r.value : [r.value]
-          const validItems = arr.filter(
-            (item) =>
-              item !== undefined && item !== null && String(item).trim() !== ""
-          )
+    for (const r of records) {
+      if (!r.name || r.name.trim() === "") continue
+
+      let finalValue: any = r.value
+      let hasVal = false
+
+      if (r.isArray) {
+        const arr = Array.isArray(r.value) ? r.value : [r.value]
+        const validItems = arr.filter(
+          (item) =>
+            item !== undefined && item !== null && String(item).trim() !== ""
+        )
+        if (validItems.length > 0) {
           finalValue = parseArrayValue(r.type, validItems)
-        } else {
-          finalValue = parseSingleValue(r.type, r.value)
+          hasVal = true
         }
+      } else {
+        if (
+          r.value !== undefined &&
+          r.value !== null &&
+          String(r.value).trim() !== ""
+        ) {
+          finalValue = parseSingleValue(r.type, r.value)
+          hasVal = true
+        }
+      }
 
-        return {
+      if (hasVal) {
+        validRecords.push({
           id: r.id || crypto.randomUUID(),
           name: r.name.trim(),
           type: r.type,
           isArray: Boolean(r.isArray),
           value: finalValue as EntityRecord["value"],
-        }
-      }),
+        })
+      }
+    }
+
+    const currentTplId =
+      templateId ||
+      (selectedTemplateToApply && selectedTemplateToApply.length > 0
+        ? selectedTemplateToApply[0]
+        : undefined)
+
+    const payload: Entity = {
+      id: id.trim() || crypto.randomUUID(),
+      template:
+        currentTplId &&
+        currentTplId !== "__NONE__" &&
+        currentTplId !== "__ALL__"
+          ? currentTplId
+          : undefined,
+      records: validRecords,
     }
 
     if (onSave) {
       onSave(payload)
     } else {
       put(payload)
+    }
+
+    // Sync relationships
+    const entityId = payload.id
+
+    for (const connItem of entityConns) {
+      if (!connItem.partnerId || connItem.partnerId.trim() === "") continue
+
+      const existingConn = connItem.connectionId
+        ? connections.find((c) => c.id === connItem.connectionId)
+        : null
+
+      if (existingConn) {
+        const fromSet = new Set(existingConn.from)
+        const toSet = new Set(existingConn.to)
+
+        if (connItem.isDirectional) {
+          if (connItem.isOutbound) {
+            fromSet.add(entityId)
+            toSet.add(connItem.partnerId)
+          } else {
+            fromSet.add(connItem.partnerId)
+            toSet.add(entityId)
+          }
+        } else {
+          fromSet.add(entityId)
+          toSet.add(connItem.partnerId)
+        }
+
+        putConnection({
+          ...existingConn,
+          isDirectional: connItem.isDirectional,
+          from: Array.from(fromSet),
+          to: Array.from(toSet),
+        })
+      } else {
+        const newConnId = crypto.randomUUID()
+        const newConn: Connection = {
+          id: newConnId,
+          from: connItem.isOutbound ? [entityId] : [connItem.partnerId],
+          to: connItem.isOutbound ? [connItem.partnerId] : [entityId],
+          isDirectional: connItem.isDirectional,
+          records: [
+            {
+              id: crypto.randomUUID(),
+              name: "role",
+              type: "shortText",
+              isArray: false,
+              value: "relatedTo",
+            },
+          ],
+        }
+        putConnection(newConn)
+      }
+    }
+
+    if (defaultValue) {
+      for (const oldConn of connections) {
+        const wasFrom = oldConn.from.includes(defaultValue.id)
+        const wasTo = oldConn.to.includes(defaultValue.id)
+        if (!wasFrom && !wasTo) continue
+
+        const stillLinked = entityConns.some(
+          (c) => c.connectionId === oldConn.id && Boolean(c.partnerId)
+        )
+
+        if (!stillLinked) {
+          const newFrom = oldConn.from.filter((f) => f !== defaultValue.id)
+          const newTo = oldConn.to.filter((tItem) => tItem !== defaultValue.id)
+          if (newFrom.length === 0 && newTo.length === 0) {
+            deleteRecordFiles(oldConn.records, removeAttachment)
+            deleteConnection(oldConn.id)
+          } else {
+            putConnection({
+              ...oldConn,
+              from: newFrom,
+              to: newTo,
+            })
+          }
+        }
+      }
     }
 
     if (!defaultValue) {
@@ -575,6 +728,171 @@ export function EntitiesDialog({
       title: defaultValue
         ? t("entityDialog.updatedSuccess")
         : t("entityDialog.createdSuccess"),
+    })
+
+    onOpenChange(false)
+  }
+
+  const handleAddConnection = () => {
+    const defaultConnId = connections.length > 0 ? connections[0].id : ""
+    setEntityConns((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        partnerId: "",
+        connectionId: defaultConnId,
+        isDirectional: true,
+        isOutbound: true,
+      },
+    ])
+  }
+
+  const handleUpdateConnection = (
+    index: number,
+    partial: Partial<EntityConnectionItem>
+  ) => {
+    setEntityConns((prev) => {
+      const next = [...prev]
+      next[index] = { ...next[index], ...partial }
+      return next
+    })
+  }
+
+  const handleRemoveConnection = (index: number) => {
+    setEntityConns((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleDuplicate = async () => {
+    const validRecords: EntityRecord[] = []
+
+    for (const r of records) {
+      if (!r.name || r.name.trim() === "") continue
+
+      let finalValue: any = r.value
+      let hasVal = false
+
+      if (r.isArray) {
+        const arr = Array.isArray(r.value) ? r.value : [r.value]
+        const validItems = arr.filter(
+          (item) =>
+            item !== undefined && item !== null && String(item).trim() !== ""
+        )
+        if (validItems.length > 0) {
+          finalValue = parseArrayValue(r.type, validItems)
+          hasVal = true
+        }
+      } else {
+        if (
+          r.value !== undefined &&
+          r.value !== null &&
+          String(r.value).trim() !== ""
+        ) {
+          finalValue = parseSingleValue(r.type, r.value)
+          hasVal = true
+        }
+      }
+
+      if (hasVal) {
+        validRecords.push({
+          id: crypto.randomUUID(),
+          name: r.name.trim(),
+          type: r.type,
+          isArray: Boolean(r.isArray),
+          value: finalValue as EntityRecord["value"],
+        })
+      }
+    }
+
+    // Duplicate files of entity records
+    const recordsWithDuplicatedFiles = await duplicateRecordFiles(
+      validRecords,
+      duplicateFile
+    )
+
+    const currentTplId =
+      templateId ||
+      (selectedTemplateToApply && selectedTemplateToApply.length > 0
+        ? selectedTemplateToApply[0]
+        : undefined)
+
+    const newEntityId = crypto.randomUUID()
+    const newEntity: Entity = {
+      id: newEntityId,
+      template:
+        currentTplId &&
+        currentTplId !== "__NONE__" &&
+        currentTplId !== "__ALL__"
+          ? currentTplId
+          : undefined,
+      records: recordsWithDuplicatedFiles,
+    }
+
+    if (onSave) {
+      onSave(newEntity)
+    } else {
+      put(newEntity)
+    }
+
+    // Duplicate all relationships / connections and their files
+    if (defaultValue) {
+      const relatedConns = connections.filter(
+        (c) =>
+          c.from.includes(defaultValue.id) || c.to.includes(defaultValue.id)
+      )
+
+      for (const conn of relatedConns) {
+        const newFrom = conn.from.map((f) =>
+          f === defaultValue.id ? newEntityId : f
+        )
+        const newTo = conn.to.map((tItem) =>
+          tItem === defaultValue.id ? newEntityId : tItem
+        )
+
+        const newConnRecords = (conn.records || []).map((r) => ({
+          ...r,
+          id: crypto.randomUUID(),
+        }))
+
+        const newConnRecordsWithFiles = await duplicateRecordFiles(
+          newConnRecords,
+          duplicateFile
+        )
+
+        const duplicatedConn: Connection = {
+          id: crypto.randomUUID(),
+          from: newFrom,
+          to: newTo,
+          isDirectional: conn.isDirectional,
+          template: conn.template,
+          records: newConnRecordsWithFiles,
+        }
+        putConnection(duplicatedConn)
+      }
+    } else {
+      for (const connItem of entityConns) {
+        if (!connItem.partnerId || connItem.partnerId.trim() === "") continue
+        const duplicatedConn: Connection = {
+          id: crypto.randomUUID(),
+          from: connItem.isOutbound ? [newEntityId] : [connItem.partnerId],
+          to: connItem.isOutbound ? [connItem.partnerId] : [newEntityId],
+          isDirectional: connItem.isDirectional,
+          records: [
+            {
+              id: crypto.randomUUID(),
+              name: "role",
+              type: "shortText",
+              isArray: false,
+              value: "relatedTo",
+            },
+          ],
+        }
+        putConnection(duplicatedConn)
+      }
+    }
+
+    toast.add({
+      type: "success",
+      title: t("entityDialog.duplicatedSuccess"),
     })
 
     onOpenChange(false)
@@ -600,8 +918,19 @@ export function EntitiesDialog({
               {/* Template Alignment */}
               <div className="flex items-center justify-end gap-1.5">
                 <TemplateSelect
-                  value={selectedTemplateToApply}
-                  onChange={setSelectedTemplateToApply}
+                  value={
+                    selectedTemplateToApply ||
+                    (templateId ? [templateId] : "__NONE__")
+                  }
+                  onChange={(val) => {
+                    setSelectedTemplateToApply(val)
+                    setTemplateId(
+                      val && val.length > 0 && val[0] !== "__NONE__"
+                        ? val[0]
+                        : undefined
+                    )
+                  }}
+                  noTemplateOption
                   placeholder={t("entityDialog.template")}
                 />
                 <Button
@@ -618,7 +947,7 @@ export function EntitiesDialog({
               </div>
 
               {/* ID Field */}
-              <IdField id={id} placeholder="entity-id..." />
+              {/* <IdField id={id} /> */}
 
               {/* Records Section */}
               <FieldSet className="gap-3 pt-2">
@@ -672,7 +1001,13 @@ export function EntitiesDialog({
               </FieldSet>
 
               {/* Connected Relationships Section */}
-              <NeighboursListField connections={entityConns} />
+              <NeighboursListField
+                connections={entityConns}
+                currentEntityId={id}
+                onAdd={handleAddConnection}
+                onUpdate={handleUpdateConnection}
+                onRemove={handleRemoveConnection}
+              />
             </div>
 
             {/* Dialog Footer */}
@@ -688,6 +1023,15 @@ export function EntitiesDialog({
                   onClick={handleDeleteClick}
                 >
                   {t("entityDialog.delete")}
+                </Button>
+              )}
+              {defaultValue && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDuplicate}
+                >
+                  {t("entityDialog.duplicate")}
                 </Button>
               )}
               <Button type="submit">

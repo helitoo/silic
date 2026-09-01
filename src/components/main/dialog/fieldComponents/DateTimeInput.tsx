@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
@@ -9,7 +10,7 @@ export interface DateTimeInputProps {
   className?: string
 }
 
-export function DateTimeInput({
+export const DateTimeInput = React.memo(function DateTimeInput({
   value,
   onChange,
   isSmall = false,
@@ -24,11 +25,12 @@ export function DateTimeInput({
       disabled={disabled}
       className={cn(
         isSmall ? "h-7 flex-1" : "h-8 w-full",
-        "font-mono text-xs",
+        "text-xs",
         className
       )}
     />
   )
-}
+})
 
 export default DateTimeInput
+

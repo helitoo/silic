@@ -53,13 +53,8 @@ export function EntitySelect({
       >
         <SelectValue placeholder={placeholder || t("query.selectEntity")}>
           {value ? (
-            <span className="flex items-center gap-1.5 whitespace-nowrap">
-              <span className="font-semibold text-foreground">
-                {currentTitle}
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                ({value})
-              </span>
+            <span className="font-semibold text-foreground whitespace-nowrap">
+              {currentTitle}
             </span>
           ) : (
             <span className="whitespace-nowrap text-muted-foreground">
@@ -74,14 +69,9 @@ export function EntitySelect({
             const title = getEntityName(entity)
             return (
               <SelectItem key={entity.id} value={entity.id}>
-                <div className="flex flex-col py-0.5 text-left whitespace-nowrap">
-                  <span className="text-xs font-medium text-foreground">
-                    {title}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {entity.id}
-                  </span>
-                </div>
+                <span className="text-xs font-medium text-foreground whitespace-nowrap">
+                  {title}
+                </span>
               </SelectItem>
             )
           })}

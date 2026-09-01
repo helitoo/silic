@@ -46,9 +46,11 @@ export type Record = {
 }
 
 export type TemplateRecord = {
+  id?: string
   type: Type
   isArray: boolean
   name: string
+  originalName?: string
 }
 
 export type Entity = {

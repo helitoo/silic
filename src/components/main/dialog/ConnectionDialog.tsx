@@ -1,5 +1,6 @@
 import * as React from "react"
-import { CirclePlus, Sparkles } from "lucide-react"
+import { CirclePlus, Sparkles, ArrowRight, MoveHorizontal } from "lucide-react"
+
 import type {
   Connection,
   Record as ConnectionRecord,
@@ -11,6 +12,8 @@ import { useTemplate } from "@/contexts/TemplateContext"
 import { useProjectStorage } from "@/contexts/ProjectStorageContext"
 import { useLang } from "@/contexts/LangContext"
 import { toast } from "@/components/ui/toast"
+import { duplicateRecordFiles, deleteRecordFiles } from "@/lib/utils"
+import { castRecordValue } from "@/lib/template-utils"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -38,7 +41,6 @@ import {
 } from "@/components/ui/field"
 import { TemplateSelect } from "../queryBlocks/components/TemplateSelect"
 import {
-  IdField,
   EntityListField,
   RecordItemEditor,
   type RecordFormState,
@@ -175,20 +177,24 @@ function alignRecordsWithTemplate(
       const existing = existingRecordsMap.get(tr.name)
       if (existing) {
         const isArray = Boolean(tr.isArray)
-        let val = normalizeRecordValue({
-          type: existing.type || tr.type,
-          isArray: Boolean(existing.isArray),
-          value: existing.value,
+        const oldType = existing.type || tr.type
+        const newType = tr.type
+        const castedVal = castRecordValue(
+          existing.value,
+          oldType,
+          newType,
+          Boolean(existing.isArray),
+          isArray
+        )
+        const val = normalizeRecordValue({
+          type: newType,
+          isArray,
+          value: castedVal,
         })
-        if (isArray && !Array.isArray(val)) {
-          val = val !== "" && val !== undefined ? [String(val)] : [""]
-        } else if (!isArray && Array.isArray(val)) {
-          val = String(val[0] || "")
-        }
         return {
           id: existing.id || crypto.randomUUID(),
           name: tr.name,
-          type: tr.type,
+          type: newType,
           isArray,
           value: val,
         }
@@ -267,7 +273,7 @@ export function ConnectionDialog({
 }: ConnectionDialogProps) {
   const { put, delete: deleteConnection } = useConnection()
   const { templates } = useTemplate()
-  const { removeAttachment } = useProjectStorage()
+  const { removeAttachment, duplicateFile } = useProjectStorage()
   const { t } = useLang()
 
   const [id, setId] = React.useState<string>("")
@@ -311,8 +317,13 @@ export function ConnectionDialog({
       } else {
         const draft = loadConnectionDraft()
         if (draft) {
-          setId(draft.id || `conn-${crypto.randomUUID().slice(0, 8)}`)
+          const cleanId =
+            draft.id && !draft.id.startsWith("conn-")
+              ? draft.id
+              : crypto.randomUUID()
+          setId(cleanId)
           setFromList(draft.from && draft.from.length > 0 ? draft.from : [""])
+
           setToList(draft.to && draft.to.length > 0 ? draft.to : [""])
           setIsDirectional(draft.isDirectional ?? true)
           setTemplateId(draft.template)
@@ -321,21 +332,13 @@ export function ConnectionDialog({
           )
           setRecords(draft.records || [])
         } else {
-          setId(`conn-${crypto.randomUUID().slice(0, 8)}`)
+          setId(crypto.randomUUID())
           setFromList([""])
           setToList([""])
           setIsDirectional(true)
           setTemplateId(undefined)
           setSelectedTemplateToApply(undefined)
-          setRecords([
-            {
-              id: crypto.randomUUID(),
-              name: "role",
-              type: "shortText",
-              isArray: false,
-              value: "relatedTo",
-            },
-          ])
+          setRecords([])
         }
       }
     }
@@ -386,21 +389,13 @@ export function ConnectionDialog({
       )
     } else {
       clearConnectionDraft()
-      setId(`conn-${crypto.randomUUID().slice(0, 8)}`)
+      setId(crypto.randomUUID())
       setFromList([""])
       setToList([""])
       setIsDirectional(true)
       setTemplateId(undefined)
       setSelectedTemplateToApply(undefined)
-      setRecords([
-        {
-          id: crypto.randomUUID(),
-          name: "role",
-          type: "shortText",
-          isArray: false,
-          value: "relatedTo",
-        },
-      ])
+      setRecords([])
     }
   }
 
@@ -408,8 +403,9 @@ export function ConnectionDialog({
     setShowDeleteAlert(true)
   }
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!defaultValue?.id) return
+    await deleteRecordFiles(defaultValue.records, removeAttachment)
     if (onDelete) {
       onDelete(defaultValue.id)
     } else {
@@ -429,14 +425,27 @@ export function ConnectionDialog({
   const handleApplyTemplate = () => {
     const targetId = Array.isArray(selectedTemplateToApply)
       ? selectedTemplateToApply[0]
-      : selectedTemplateToApply
+      : selectedTemplateToApply || templateId
 
-    if (!targetId || targetId === "__ALL__") return
+    if (!targetId || targetId === "__ALL__" || targetId === "__NONE__") {
+      setTemplateId(undefined)
+      setSelectedTemplateToApply(undefined)
+      toast.add({
+        type: "info",
+        title: t("connectionDialog.noTemplateApplied"),
+      })
+      return
+    }
 
     const tpl = templates.find((tItem) => tItem.id === targetId)
-    if (!tpl) return
+    if (!tpl) {
+      setTemplateId(undefined)
+      setSelectedTemplateToApply(undefined)
+      return
+    }
 
     setTemplateId(tpl.id)
+    setSelectedTemplateToApply([tpl.id])
     setRecords(alignRecordsWithTemplate(records, tpl))
     toast.add({
       type: "info",
@@ -445,33 +454,51 @@ export function ConnectionDialog({
   }
 
   // From List handlers
-  const handleAddFrom = () => setFromList((prev) => [...prev, ""])
-  const handleUpdateFrom = (index: number, newId: string) => {
-    setFromList((prev) => {
-      const next = [...prev]
-      next[index] = newId
-      return next
-    })
-  }
-  const handleRemoveFrom = (index: number) => {
-    setFromList((prev) => prev.filter((_, i) => i !== index))
-  }
+  const handleAddFrom = React.useCallback(
+    () => setFromList((prev) => [...prev, ""]),
+    []
+  )
+  const handleUpdateFrom = React.useCallback(
+    (index: number, newId: string) => {
+      setFromList((prev) => {
+        const next = [...prev]
+        next[index] = newId
+        return next
+      })
+    },
+    []
+  )
+  const handleRemoveFrom = React.useCallback(
+    (index: number) => {
+      setFromList((prev) => prev.filter((_, i) => i !== index))
+    },
+    []
+  )
 
   // To List handlers
-  const handleAddTo = () => setToList((prev) => [...prev, ""])
-  const handleUpdateTo = (index: number, newId: string) => {
-    setToList((prev) => {
-      const next = [...prev]
-      next[index] = newId
-      return next
-    })
-  }
-  const handleRemoveTo = (index: number) => {
-    setToList((prev) => prev.filter((_, i) => i !== index))
-  }
+  const handleAddTo = React.useCallback(
+    () => setToList((prev) => [...prev, ""]),
+    []
+  )
+  const handleUpdateTo = React.useCallback(
+    (index: number, newId: string) => {
+      setToList((prev) => {
+        const next = [...prev]
+        next[index] = newId
+        return next
+      })
+    },
+    []
+  )
+  const handleRemoveTo = React.useCallback(
+    (index: number) => {
+      setToList((prev) => prev.filter((_, i) => i !== index))
+    },
+    []
+  )
 
   // Record CRUD Handlers
-  const handleAddRecord = () => {
+  const handleAddRecord = React.useCallback(() => {
     setRecords((prev) => [
       ...prev,
       {
@@ -482,56 +509,64 @@ export function ConnectionDialog({
         value: "",
       },
     ])
-  }
+  }, [])
 
-  const handleUpdateRecord = (
-    index: number,
-    partial: Partial<RecordFormState>
-  ) => {
-    setRecords((prev) => {
-      const next = [...prev]
-      const cur = next[index]
-      let val = partial.value !== undefined ? partial.value : cur.value
+  const handleUpdateRecord = React.useCallback(
+    (index: number, partial: Partial<RecordFormState>) => {
+      setRecords((prev) => {
+        const next = [...prev]
+        const cur = next[index]
+        if (!cur) return prev
+        let val = partial.value !== undefined ? partial.value : cur.value
 
-      if (partial.isArray !== undefined && partial.isArray !== cur.isArray) {
-        if (partial.isArray) {
-          val = val !== "" && val !== undefined ? [String(val)] : [""]
-        } else {
-          val = Array.isArray(val) ? String(val[0] || "") : String(val)
+        if (partial.isArray !== undefined && partial.isArray !== cur.isArray) {
+          if (partial.isArray) {
+            val = val !== "" && val !== undefined ? [String(val)] : [""]
+          } else {
+            val = Array.isArray(val) ? String(val[0] || "") : String(val)
+          }
         }
-      }
 
-      next[index] = {
-        ...cur,
-        ...partial,
-        value: val,
-      }
-      return next
-    })
-  }
-
-  const handleRemoveRecord = (index: number) => {
-    setRecords((prev) => {
-      const target = prev[index]
-      if (target && ["image", "video", "audio", "file"].includes(target.type)) {
-        if (Array.isArray(target.value)) {
-          target.value.forEach((v) => {
-            if (v && typeof v === "string") {
-              removeAttachment(v).catch(() => {})
-            }
-          })
-        } else if (target.value && typeof target.value === "string") {
-          removeAttachment(target.value).catch(() => {})
+        next[index] = {
+          ...cur,
+          ...partial,
+          value: val,
         }
-      }
-      return prev.filter((_, i) => i !== index)
-    })
-  }
+        return next
+      })
+    },
+    []
+  )
 
-  const handleAddArrayItem = (recordIndex: number) => {
+  const handleRemoveRecord = React.useCallback(
+    (index: number) => {
+      setRecords((prev) => {
+        const target = prev[index]
+        if (
+          target &&
+          ["image", "video", "audio", "file"].includes(target.type)
+        ) {
+          if (Array.isArray(target.value)) {
+            target.value.forEach((v) => {
+              if (v && typeof v === "string") {
+                removeAttachment(v).catch(() => {})
+              }
+            })
+          } else if (target.value && typeof target.value === "string") {
+            removeAttachment(target.value).catch(() => {})
+          }
+        }
+        return prev.filter((_, i) => i !== index)
+      })
+    },
+    [removeAttachment]
+  )
+
+  const handleAddArrayItem = React.useCallback((recordIndex: number) => {
     setRecords((prev) => {
       const next = [...prev]
       const cur = next[recordIndex]
+      if (!cur) return prev
       const currentArr = Array.isArray(cur.value) ? [...cur.value] : []
       next[recordIndex] = {
         ...cur,
@@ -539,48 +574,51 @@ export function ConnectionDialog({
       }
       return next
     })
-  }
+  }, [])
 
-  const handleUpdateArrayItem = (
-    recordIndex: number,
-    itemIndex: number,
-    newVal: string
-  ) => {
-    setRecords((prev) => {
-      const next = [...prev]
-      const cur = next[recordIndex]
-      const currentArr = Array.isArray(cur.value) ? [...cur.value] : [""]
-      currentArr[itemIndex] = newVal
-      next[recordIndex] = {
-        ...cur,
-        value: currentArr,
-      }
-      return next
-    })
-  }
+  const handleUpdateArrayItem = React.useCallback(
+    (recordIndex: number, itemIndex: number, newVal: string) => {
+      setRecords((prev) => {
+        const next = [...prev]
+        const cur = next[recordIndex]
+        if (!cur) return prev
+        const currentArr = Array.isArray(cur.value) ? [...cur.value] : [""]
+        currentArr[itemIndex] = newVal
+        next[recordIndex] = {
+          ...cur,
+          value: currentArr,
+        }
+        return next
+      })
+    },
+    []
+  )
 
-  const handleRemoveArrayItem = (recordIndex: number, itemIndex: number) => {
-    setRecords((prev) => {
-      const next = [...prev]
-      const cur = next[recordIndex]
-      if (!cur) return prev
-      const currentArr = Array.isArray(cur.value) ? [...cur.value] : []
-      const removingVal = currentArr[itemIndex]
-      if (
-        removingVal &&
-        typeof removingVal === "string" &&
-        ["image", "video", "audio", "file"].includes(cur.type)
-      ) {
-        removeAttachment(removingVal).catch(() => {})
-      }
-      const filtered = currentArr.filter((_, i) => i !== itemIndex)
-      next[recordIndex] = {
-        ...cur,
-        value: filtered.length > 0 ? filtered : [""],
-      }
-      return next
-    })
-  }
+  const handleRemoveArrayItem = React.useCallback(
+    (recordIndex: number, itemIndex: number) => {
+      setRecords((prev) => {
+        const next = [...prev]
+        const cur = next[recordIndex]
+        if (!cur) return prev
+        const currentArr = Array.isArray(cur.value) ? [...cur.value] : []
+        const removingVal = currentArr[itemIndex]
+        if (
+          removingVal &&
+          typeof removingVal === "string" &&
+          ["image", "video", "audio", "file"].includes(cur.type)
+        ) {
+          removeAttachment(removingVal).catch(() => {})
+        }
+        const filtered = currentArr.filter((_, i) => i !== itemIndex)
+        next[recordIndex] = {
+          ...cur,
+          value: filtered.length > 0 ? filtered : [""],
+        }
+        return next
+      })
+    },
+    [removeAttachment]
+  )
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -588,34 +626,64 @@ export function ConnectionDialog({
     const validFrom = fromList.map((f) => f.trim()).filter(Boolean)
     const validTo = toList.map((tItem) => tItem.trim()).filter(Boolean)
 
-    const payload: Connection = {
-      id: id.trim() || `conn-${crypto.randomUUID().slice(0, 8)}`,
-      from: validFrom,
-      to: validTo,
-      isDirectional,
-      template: templateId,
-      records: records.map((r): ConnectionRecord => {
-        let finalValue: any = r.value
+    const validRecords: ConnectionRecord[] = []
 
-        if (r.isArray) {
-          const arr = Array.isArray(r.value) ? r.value : [r.value]
-          const validItems = arr.filter(
-            (item) =>
-              item !== undefined && item !== null && String(item).trim() !== ""
-          )
+    for (const r of records) {
+      if (!r.name || r.name.trim() === "") continue
+
+      let finalValue: any = r.value
+      let hasVal = false
+
+      if (r.isArray) {
+        const arr = Array.isArray(r.value) ? r.value : [r.value]
+        const validItems = arr.filter(
+          (item) =>
+            item !== undefined && item !== null && String(item).trim() !== ""
+        )
+        if (validItems.length > 0) {
           finalValue = parseArrayValue(r.type, validItems)
-        } else {
-          finalValue = parseSingleValue(r.type, r.value)
+          hasVal = true
         }
+      } else {
+        if (
+          r.value !== undefined &&
+          r.value !== null &&
+          String(r.value).trim() !== ""
+        ) {
+          finalValue = parseSingleValue(r.type, r.value)
+          hasVal = true
+        }
+      }
 
-        return {
+      if (hasVal) {
+        validRecords.push({
           id: r.id || crypto.randomUUID(),
           name: r.name.trim(),
           type: r.type,
           isArray: Boolean(r.isArray),
           value: finalValue as ConnectionRecord["value"],
-        }
-      }),
+        })
+      }
+    }
+
+    const currentTplId =
+      templateId ||
+      (selectedTemplateToApply && selectedTemplateToApply.length > 0
+        ? selectedTemplateToApply[0]
+        : undefined)
+
+    const payload: Connection = {
+      id: id.trim() || crypto.randomUUID(),
+      from: validFrom,
+      to: validTo,
+      isDirectional,
+      template:
+        currentTplId &&
+        currentTplId !== "__NONE__" &&
+        currentTplId !== "__ALL__"
+          ? currentTplId
+          : undefined,
+      records: validRecords,
     }
 
     if (onSave) {
@@ -633,6 +701,90 @@ export function ConnectionDialog({
       title: defaultValue
         ? t("connectionDialog.updatedSuccess")
         : t("connectionDialog.createdSuccess"),
+    })
+
+    onOpenChange(false)
+  }
+
+  const handleDuplicate = async () => {
+    const validFrom = fromList.map((f) => f.trim()).filter(Boolean)
+    const validTo = toList.map((tItem) => tItem.trim()).filter(Boolean)
+
+    const validRecords: ConnectionRecord[] = []
+
+    for (const r of records) {
+      if (!r.name || r.name.trim() === "") continue
+
+      let finalValue: any = r.value
+      let hasVal = false
+
+      if (r.isArray) {
+        const arr = Array.isArray(r.value) ? r.value : [r.value]
+        const validItems = arr.filter(
+          (item) =>
+            item !== undefined && item !== null && String(item).trim() !== ""
+        )
+        if (validItems.length > 0) {
+          finalValue = parseArrayValue(r.type, validItems)
+          hasVal = true
+        }
+      } else {
+        if (
+          r.value !== undefined &&
+          r.value !== null &&
+          String(r.value).trim() !== ""
+        ) {
+          finalValue = parseSingleValue(r.type, r.value)
+          hasVal = true
+        }
+      }
+
+      if (hasVal) {
+        validRecords.push({
+          id: crypto.randomUUID(),
+          name: r.name.trim(),
+          type: r.type,
+          isArray: Boolean(r.isArray),
+          value: finalValue as ConnectionRecord["value"],
+        })
+      }
+    }
+
+    // Duplicate files of connection records
+    const recordsWithDuplicatedFiles = await duplicateRecordFiles(
+      validRecords,
+      duplicateFile
+    )
+
+    const currentTplId =
+      templateId ||
+      (selectedTemplateToApply && selectedTemplateToApply.length > 0
+        ? selectedTemplateToApply[0]
+        : undefined)
+
+    const payload: Connection = {
+      id: crypto.randomUUID(),
+      from: validFrom,
+      to: validTo,
+      isDirectional,
+      template:
+        currentTplId &&
+        currentTplId !== "__NONE__" &&
+        currentTplId !== "__ALL__"
+          ? currentTplId
+          : undefined,
+      records: recordsWithDuplicatedFiles,
+    }
+
+    if (onSave) {
+      onSave(payload)
+    } else {
+      put(payload)
+    }
+
+    toast.add({
+      type: "success",
+      title: t("connectionDialog.duplicatedSuccess"),
     })
 
     onOpenChange(false)
@@ -658,8 +810,19 @@ export function ConnectionDialog({
               {/* Template Alignment */}
               <div className="flex items-center justify-end gap-1.5">
                 <TemplateSelect
-                  value={selectedTemplateToApply}
-                  onChange={setSelectedTemplateToApply}
+                  value={
+                    selectedTemplateToApply ||
+                    (templateId ? [templateId] : "__NONE__")
+                  }
+                  onChange={(val) => {
+                    setSelectedTemplateToApply(val)
+                    setTemplateId(
+                      val && val.length > 0 && val[0] !== "__NONE__"
+                        ? val[0]
+                        : undefined
+                    )
+                  }}
+                  noTemplateOption
                   placeholder={t("connectionDialog.template")}
                 />
                 <Button
@@ -676,11 +839,10 @@ export function ConnectionDialog({
               </div>
 
               {/* ID Field */}
-              <IdField
+              {/* <IdField
                 id={id}
                 label={t("connectionDialog.id")}
-                placeholder="conn-id..."
-              />
+              /> */}
 
               {/* Source Entities (From) */}
               <EntityListField
@@ -705,20 +867,37 @@ export function ConnectionDialog({
               />
 
               {/* Directional Toggle */}
-              <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-card/60 px-3 py-2 shadow-2xs">
-                <Checkbox
-                  id="is-directional"
-                  checked={isDirectional}
-                  onCheckedChange={(checked) =>
-                    setIsDirectional(Boolean(checked))
-                  }
-                />
-                <FieldLabel
-                  htmlFor="is-directional"
-                  className="cursor-pointer text-xs font-medium text-foreground select-none"
-                >
-                  {t("connectionDialog.directional")}
-                </FieldLabel>
+              <div className="flex items-center justify-between rounded-lg border border-border/50 bg-card/60 px-3 py-2 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="is-directional"
+                    checked={isDirectional}
+                    onCheckedChange={(checked) =>
+                      setIsDirectional(Boolean(checked))
+                    }
+                  />
+                  <FieldLabel
+                    htmlFor="is-directional"
+                    className="cursor-pointer text-xs font-medium text-foreground select-none"
+                  >
+                    {t("connectionDialog.directional")}
+                  </FieldLabel>
+                </div>
+                <span className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  {isDirectional ? (
+                    <>
+                      <ArrowRight className="size-3 text-primary" />
+                      <span className="text-primary font-semibold">
+                        {t("connectionsPage.isDirectional")}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <MoveHorizontal className="size-3 text-muted-foreground" />
+                      <span>{t("connectionsPage.isNonDirectional")}</span>
+                    </>
+                  )}
+                </span>
               </div>
 
               {/* Records Section */}
@@ -786,6 +965,15 @@ export function ConnectionDialog({
                   onClick={handleDeleteClick}
                 >
                   {t("connectionDialog.delete")}
+                </Button>
+              )}
+              {defaultValue && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDuplicate}
+                >
+                  <span>{t("connectionDialog.duplicate")}</span>
                 </Button>
               )}
               <Button type="submit">

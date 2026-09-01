@@ -15,7 +15,7 @@ export interface LongTextInputProps {
   className?: string
 }
 
-export function LongTextInput({
+export const LongTextInput = React.memo(function LongTextInput({
   value,
   onChange,
   placeholder,
@@ -94,6 +94,6 @@ export function LongTextInput({
       </Button>
     </div>
   )
-}
+})
 
 export default LongTextInput

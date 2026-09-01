@@ -1,3 +1,4 @@
+import * as React from "react"
 import type { Type } from "@/lib/types"
 import { LongTextInput } from "./LongTextInput"
 import { UrlInput } from "./UrlInput"
@@ -19,7 +20,7 @@ export interface RecordValueInputProps {
   className?: string
 }
 
-export function RecordValueInput({
+export const RecordValueInput = React.memo(function RecordValueInput({
   type,
   value,
   onChange,
@@ -121,6 +122,6 @@ export function RecordValueInput({
         />
       )
   }
-}
+})
 
 export default RecordValueInput

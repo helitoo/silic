@@ -20,10 +20,13 @@ export const typeEnum = [
 export const typeSchema = z.enum(typeEnum)
 
 export const templateRecordSchema = z.object({
-  name: z.string().trim().min(1, "Name is required"),
+  id: z.string().optional(),
+  name: z.string().trim(),
   type: typeSchema,
   isArray: z.boolean(),
+  originalName: z.string().optional(),
 }) satisfies z.ZodType<TemplateRecord>
+
 
 export const templateSchema = z.object({
   id: z.string().uuid("Invalid UUID"),

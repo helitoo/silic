@@ -12,6 +12,7 @@ import {
 import type { Entity, Connection } from "@/lib/types"
 import { getEntityName, getConnectionName } from "@/lib/utils"
 import { useEntity } from "@/contexts/EntityContext"
+import { useTemplate } from "@/contexts/TemplateContext"
 import { useQuery } from "@/contexts/QueryContext"
 import { useLang } from "@/contexts/LangContext"
 import { TabsContent } from "@/components/ui/tabs"
@@ -41,6 +42,7 @@ interface GraphLink {
 
 export default function DiagramPage() {
   const { entities } = useEntity()
+  const { templates } = useTemplate()
   const { currentEntities, currentConnections, currentPath, isPathFiltered } =
     useQuery()
   const { t } = useLang()
@@ -91,7 +93,7 @@ export default function DiagramPage() {
     const links: GraphLink[] = []
 
     for (const conn of currentConnections) {
-      const connName = getConnectionName(conn)
+      const connName = getConnectionName(conn, templates)
       for (const fromId of conn.from) {
         for (const toId of conn.to) {
           if (validNodeIdSet.has(fromId) && validNodeIdSet.has(toId)) {

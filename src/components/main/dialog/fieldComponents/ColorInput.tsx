@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
@@ -10,7 +11,7 @@ export interface ColorInputProps {
   className?: string
 }
 
-export function ColorInput({
+export const ColorInput = React.memo(function ColorInput({
   value,
   onChange,
   placeholder = "#3b82f6",
@@ -18,8 +19,20 @@ export function ColorInput({
   disabled = false,
   className,
 }: ColorInputProps) {
-  const isValidHex = /^#([0-9A-F]{3}){1,2}$/i.test(value)
-  const colorHex = isValidHex ? value : "#000000"
+  const [localVal, setLocalVal] = React.useState(value ?? "")
+
+  React.useEffect(() => {
+    setLocalVal(value ?? "")
+  }, [value])
+
+  const isValidHex = /^#([0-9A-F]{3}){1,2}$/i.test(localVal)
+  const colorHex = isValidHex ? localVal : "#000000"
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.value
+    setLocalVal(next)
+    onChange(next)
+  }
 
   return (
     <div
@@ -39,7 +52,7 @@ export function ColorInput({
         <input
           type="color"
           value={colorHex}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={handleChange}
           disabled={disabled}
           className="absolute -inset-2 size-[calc(100%+16px)] cursor-pointer rounded-full border-0 bg-transparent p-0"
           title="Pick color"
@@ -47,17 +60,15 @@ export function ColorInput({
       </div>
       <Input
         type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={localVal}
+        onChange={handleChange}
         placeholder={placeholder}
         disabled={disabled}
-        className={cn(
-          isSmall ? "h-7 flex-1" : "h-8 flex-1",
-          "font-mono text-xs"
-        )}
+        className={cn(isSmall ? "h-7 flex-1" : "h-8 flex-1", "text-xs")}
       />
     </div>
   )
-}
+})
 
 export default ColorInput
+

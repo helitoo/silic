@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
@@ -11,7 +12,7 @@ export interface TextInputProps {
   type?: string
 }
 
-export function TextInput({
+export const TextInput = React.memo(function TextInput({
   value,
   onChange,
   placeholder,
@@ -20,20 +21,33 @@ export function TextInput({
   className,
   type = "text",
 }: TextInputProps) {
+  const [localVal, setLocalVal] = React.useState(value ?? "")
+
+  React.useEffect(() => {
+    setLocalVal(value ?? "")
+  }, [value])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.value
+    setLocalVal(next)
+    onChange(next)
+  }
+
   return (
     <Input
       type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
+      value={localVal}
+      onChange={handleChange}
       placeholder={placeholder}
       disabled={disabled}
       className={cn(
         isSmall ? "h-7 flex-1" : "h-8 w-full",
-        "font-mono text-xs",
+        "text-xs",
         className
       )}
     />
   )
-}
+})
 
 export default TextInput
+

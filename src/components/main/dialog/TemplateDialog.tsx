@@ -7,18 +7,27 @@ import {
 } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { CirclePlus, GripVertical, Trash2 } from "lucide-react"
+
 import { DragDropProvider } from "@dnd-kit/react"
 import { useSortable } from "@dnd-kit/react/sortable"
+import { move as dndMove } from "@dnd-kit/helpers"
 
 import type { Template, Type } from "@/lib/types"
 import { templateSchema } from "@/lib/schemas"
-import { getTypeIcon, getTypeLabel, getTypeOptions } from "@/lib/template-utils"
+import {
+  getTypeIcon,
+  getTypeLabel,
+  getTypeOptions,
+  syncEntityWithTemplate,
+} from "@/lib/template-utils"
 import { useTemplate } from "@/contexts/TemplateContext"
+import { useEntity } from "@/contexts/EntityContext"
+import { useConnection } from "@/contexts/ConnectionContext"
+import { useProjectStorage } from "@/contexts/ProjectStorageContext"
 import { useLang } from "@/contexts/LangContext"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/toast"
 import { Button } from "@/components/ui/button"
-import { CopyButton } from "@/components/ui/copy-button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -97,9 +106,11 @@ function getDefaultFormValues(defaultValue?: Template | null): Template {
       id: defaultValue.id,
       name: defaultValue.name || "",
       records: (defaultValue.records || []).map((r) => ({
+        id: r.id || crypto.randomUUID(),
         name: r.name || "",
         type: r.type || "shortText",
         isArray: Boolean(r.isArray),
+        originalName: r.name || "",
       })),
     }
   }
@@ -110,12 +121,20 @@ function getDefaultFormValues(defaultValue?: Template | null): Template {
       name: draft.name || "",
       records:
         draft.records && draft.records.length > 0
-          ? draft.records
+          ? draft.records.map((r) => ({
+              id: r.id || crypto.randomUUID(),
+              name: r.name || "",
+              type: r.type || "shortText",
+              isArray: Boolean(r.isArray),
+              originalName: r.originalName || r.name || "",
+            }))
           : [
               {
+                id: crypto.randomUUID(),
                 name: "",
                 type: "shortText",
                 isArray: false,
+                originalName: "",
               },
             ],
     }
@@ -125,9 +144,11 @@ function getDefaultFormValues(defaultValue?: Template | null): Template {
     name: "",
     records: [
       {
+        id: crypto.randomUUID(),
         name: "",
         type: "shortText",
         isArray: false,
+        originalName: "",
       },
     ],
   }
@@ -153,7 +174,7 @@ function RecordRow({ id, index, control, onRemove }: RecordRowProps) {
     <div
       ref={ref}
       className={cn(
-        "group relative flex items-center gap-2 rounded-lg border border-border/70 bg-card/60 p-2.5 shadow-2xs transition-all hover:border-border",
+        "group relative flex items-center gap-2 rounded-lg border border-border/70 bg-card/60 p-2.5 shadow-2xs transition-colors hover:border-border",
         isDragging && "border-dashed border-primary/60 bg-muted/40 opacity-40",
         isDropTarget && !isDragging && "border-primary ring-2 ring-primary/20"
       )}
@@ -293,6 +314,9 @@ export function TemplateDialog({
   onDelete,
 }: TemplateDialogProps) {
   const { put, delete: deleteTemplate } = useTemplate()
+  const { entities, put: putEntity } = useEntity()
+  const { connections, put: putConnection } = useConnection()
+  const { removeAttachment } = useProjectStorage()
   const { t } = useLang()
 
   const form = useForm<Template>({
@@ -307,12 +331,46 @@ export function TemplateDialog({
 
   const [showDeleteAlert, setShowDeleteAlert] = React.useState(false)
 
+  interface ChangedTypeInfo {
+    name: string
+    oldType: Type
+    newType: Type
+    wasArray: boolean
+    isArray: boolean
+  }
+
+  const [impactConfirmState, setImpactConfirmState] = React.useState<{
+    open: boolean
+    payload: Template | null
+    matchedEntitiesCount: number
+    matchedConnectionsCount: number
+    deletedRecords: Array<{ name: string; type: Type; isArray: boolean }>
+    changedTypes: ChangedTypeInfo[]
+    isOrderChanged: boolean
+    deleteFromEntities: boolean
+    renameMap: Map<string, string>
+  }>({
+    open: false,
+    payload: null,
+    matchedEntitiesCount: 0,
+    matchedConnectionsCount: 0,
+    deletedRecords: [],
+    changedTypes: [],
+    isOrderChanged: false,
+    deleteFromEntities: false,
+    renameMap: new Map(),
+  })
+
   // Reset form whenever dialog opens or defaultValue changes
   React.useEffect(() => {
     if (open) {
       form.reset(getDefaultFormValues(defaultValue))
     }
   }, [open, defaultValue, form])
+
+  const handleDeleteRecordClick = (index: number) => {
+    remove(index)
+  }
 
   // Auto-save draft when creating new template
   React.useEffect(() => {
@@ -333,9 +391,11 @@ export function TemplateDialog({
         name: "",
         records: [
           {
+            id: crypto.randomUUID(),
             name: "",
             type: "shortText",
             isArray: false,
+            originalName: "",
           },
         ],
       })
@@ -350,10 +410,30 @@ export function TemplateDialog({
 
   const confirmDelete = () => {
     if (!defaultValue?.id) return
+    const templateId = defaultValue.id
+
+    // Detach template from linked entities while keeping records intact
+    const matchedEnts = entities.filter((e) => e.template === templateId)
+    for (const ent of matchedEnts) {
+      putEntity({
+        ...ent,
+        template: undefined,
+      })
+    }
+
+    // Detach template from linked connections while keeping records intact
+    const matchedConns = connections.filter((c) => c.template === templateId)
+    for (const conn of matchedConns) {
+      putConnection({
+        ...conn,
+        template: undefined,
+      })
+    }
+
     if (onDelete) {
-      onDelete(defaultValue.id)
+      onDelete(templateId)
     } else {
-      deleteTemplate(defaultValue.id)
+      deleteTemplate(templateId)
     }
 
     toast.add({
@@ -365,21 +445,55 @@ export function TemplateDialog({
     onOpenChange(false)
   }
 
-  const handleFormSubmit = (data: Template) => {
-    const payload: Template = {
-      id: data.id,
-      name: data.name.trim(),
-      records: (data.records || []).map((r) => ({
-        name: r.name.trim(),
-        type: r.type,
-        isArray: Boolean(r.isArray),
-      })),
-    }
-
+  const executeSaveTemplate = (
+    payload: Template,
+    deleteMissingRecords: boolean,
+    renameMap: Map<string, string> = new Map()
+  ) => {
     if (onSave) {
       onSave(payload)
     } else {
       put(payload)
+    }
+
+    // Synchronize linked entities and connections
+    if (defaultValue?.id) {
+      const matchedEnts = entities.filter((e) => e.template === payload.id)
+      const matchedConns = connections.filter((c) => c.template === payload.id)
+
+      for (const ent of matchedEnts) {
+        const result = syncEntityWithTemplate(
+          ent.records,
+          payload,
+          defaultValue,
+          deleteMissingRecords,
+          renameMap
+        )
+        for (const fileId of result.deletedFileIds) {
+          removeAttachment(fileId).catch(() => {})
+        }
+        putEntity({
+          ...ent,
+          records: result.records,
+        })
+      }
+
+      for (const conn of matchedConns) {
+        const result = syncEntityWithTemplate(
+          conn.records,
+          payload,
+          defaultValue,
+          deleteMissingRecords,
+          renameMap
+        )
+        for (const fileId of result.deletedFileIds) {
+          removeAttachment(fileId).catch(() => {})
+        }
+        putConnection({
+          ...conn,
+          records: result.records,
+        })
+      }
     }
 
     if (!defaultValue) {
@@ -393,14 +507,155 @@ export function TemplateDialog({
         : t("templateDialog.createdSuccess"),
     })
 
+    setImpactConfirmState((prev) => ({ ...prev, open: false }))
+    onOpenChange(false)
+  }
+
+  const handleFormSubmit = (data: Template) => {
+    const validRecords = (data.records || [])
+      .map((r) => ({
+        id: r.id || crypto.randomUUID(),
+        name: r.name ? r.name.trim() : "",
+        type: r.type,
+        isArray: Boolean(r.isArray),
+        originalName: r.originalName ? r.originalName.trim() : undefined,
+      }))
+      .filter((r) => r.name.length > 0)
+
+    const payload: Template = {
+      id: data.id,
+      name: data.name.trim(),
+      records: validRecords,
+    }
+
+    if (defaultValue?.id) {
+      const matchedEnts = entities.filter((e) => e.template === payload.id)
+      const matchedConns = connections.filter((c) => c.template === payload.id)
+      const totalMatched = matchedEnts.length + matchedConns.length
+
+      if (totalMatched > 0) {
+        const oldRecords = defaultValue.records || []
+        const newRecords = payload.records
+
+        // 1. Build rename map (originalName -> newName)
+        const renameMap = new Map<string, string>()
+        for (const r of newRecords) {
+          if (r.originalName && r.originalName !== r.name) {
+            renameMap.set(r.originalName, r.name)
+          }
+        }
+        const renamedOldNames = new Set(renameMap.keys())
+
+        // 2. Check genuinely deleted records (excluding renamed ones)
+        const deleted = oldRecords.filter((oldR) => {
+          if (renamedOldNames.has(oldR.name)) return false
+          const stillPresent = newRecords.some(
+            (newR) =>
+              newR.name === oldR.name || newR.originalName === oldR.name
+          )
+          return !stillPresent
+        })
+
+        // 3. Check type & isArray changes
+        const changedTypes: ChangedTypeInfo[] = []
+        for (const newR of newRecords) {
+          const matchedOld = oldRecords.find(
+            (o) => o.name === (newR.originalName || newR.name)
+          )
+          if (matchedOld) {
+            if (
+              matchedOld.type !== newR.type ||
+              Boolean(matchedOld.isArray) !== Boolean(newR.isArray)
+            ) {
+              changedTypes.push({
+                name: newR.name,
+                oldType: matchedOld.type,
+                newType: newR.type,
+                wasArray: Boolean(matchedOld.isArray),
+                isArray: Boolean(newR.isArray),
+              })
+            }
+          }
+        }
+
+        // 4. Check order changes
+        let isOrderChanged = false
+        const mappedOldNames = oldRecords
+          .map((r) => renameMap.get(r.name) || r.name)
+          .filter((n) => newRecords.some((nr) => nr.name === n))
+        const currentNewNames = newRecords
+          .map((r) => r.name)
+          .filter((n) =>
+            oldRecords.some((or) => (renameMap.get(or.name) || or.name) === n)
+          )
+
+        if (mappedOldNames.join(",") !== currentNewNames.join(",")) {
+          isOrderChanged = true
+        }
+
+        // If there are deleted records or changed types or order changes, open unified impact dialog
+        // Renaming alone does NOT trigger alert!
+        if (deleted.length > 0 || changedTypes.length > 0 || isOrderChanged) {
+          setImpactConfirmState({
+            open: true,
+            payload,
+            matchedEntitiesCount: matchedEnts.length,
+            matchedConnectionsCount: matchedConns.length,
+            deletedRecords: deleted,
+            changedTypes,
+            isOrderChanged,
+            deleteFromEntities: false,
+            renameMap,
+          })
+          return
+        }
+
+        // Only renamed or no destructive changes -> save immediately with renameMap!
+        executeSaveTemplate(payload, false, renameMap)
+        return
+      }
+    }
+
+    executeSaveTemplate(payload, false)
+  }
+
+  const handleDuplicate = () => {
+    const data = form.getValues()
+    const validRecords = (data.records || [])
+      .map((r) => ({
+        name: r.name ? r.name.trim() : "",
+        type: r.type,
+        isArray: Boolean(r.isArray),
+      }))
+      .filter((r) => r.name.length > 0)
+
+    const payload: Template = {
+      id: crypto.randomUUID(),
+      name: data.name ? `${data.name.trim()} (Copy)` : "Untitled (Copy)",
+      records: validRecords,
+    }
+
+    if (onSave) {
+      onSave(payload)
+    } else {
+      put(payload)
+    }
+
+    toast.add({
+      type: "success",
+      title: t("templateDialog.duplicatedSuccess"),
+    })
+
     onOpenChange(false)
   }
 
   const handleAddRecord = () => {
     append({
+      id: crypto.randomUUID(),
       name: "",
       type: "shortText",
       isArray: false,
+      originalName: "",
     })
   }
 
@@ -422,7 +677,7 @@ export function TemplateDialog({
           >
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
               {/* ID Field (ALWAYS disabled in both modes) */}
-              <Controller
+              {/* <Controller
                 name="id"
                 control={form.control}
                 render={({ field }) => (
@@ -445,7 +700,7 @@ export function TemplateDialog({
                     </div>
                   </Field>
                 )}
-              />
+              /> */}
 
               {/* Template Name Field */}
               <Controller
@@ -492,21 +747,26 @@ export function TemplateDialog({
                 <DragDropProvider
                   onDragEnd={(event) => {
                     if (event.canceled) return
-                    const { source, target } = event.operation
-                    if (!source || !target || source.id === target.id) return
 
-                    const sourceIndex = fields.findIndex(
-                      (f) => f.id === source.id
-                    )
-                    const targetIndex = fields.findIndex(
-                      (f) => f.id === target.id
-                    )
-                    if (
-                      sourceIndex !== -1 &&
-                      targetIndex !== -1 &&
-                      sourceIndex !== targetIndex
-                    ) {
-                      move(sourceIndex, targetIndex)
+                    const itemsWithIds = fields.map((f) => ({ id: f.id }))
+                    const reordered = dndMove(itemsWithIds, event)
+                    if (reordered !== itemsWithIds) {
+                      const sourceId = event.operation.source?.id
+                      if (sourceId) {
+                        const fromIndex = itemsWithIds.findIndex(
+                          (item) => item.id === sourceId
+                        )
+                        const toIndex = reordered.findIndex(
+                          (item) => item.id === sourceId
+                        )
+                        if (
+                          fromIndex !== -1 &&
+                          toIndex !== -1 &&
+                          fromIndex !== toIndex
+                        ) {
+                          move(fromIndex, toIndex)
+                        }
+                      }
                     }
                   }}
                 >
@@ -517,7 +777,7 @@ export function TemplateDialog({
                         id={fieldItem.id}
                         index={index}
                         control={form.control}
-                        onRemove={() => remove(index)}
+                        onRemove={() => handleDeleteRecordClick(index)}
                       />
                     ))}
 
@@ -556,6 +816,15 @@ export function TemplateDialog({
                   {t("templateDialog.delete")}
                 </Button>
               )}
+              {defaultValue && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDuplicate}
+                >
+                  {t("templateDialog.duplicate")}
+                </Button>
+              )}
               <Button type="submit">
                 {defaultValue
                   ? t("templateDialog.save")
@@ -566,7 +835,7 @@ export function TemplateDialog({
         </DialogContent>
       </Dialog>
 
-      {/* Delete Item Alert Dialog */}
+      {/* Delete Entire Template Alert Dialog */}
       <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
@@ -574,7 +843,13 @@ export function TemplateDialog({
               {t("templateDialog.confirmDeleteTitle")}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {t("templateDialog.confirmDeleteDesc")}
+              {defaultValue &&
+              entities.filter((e) => e.template === defaultValue.id).length > 0
+                ? t("templateDialog.confirmDeleteLinkedDesc", {
+                    count: entities.filter((e) => e.template === defaultValue.id)
+                      .length,
+                  })
+                : t("templateDialog.confirmDeleteDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -583,6 +858,137 @@ export function TemplateDialog({
             </AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={confirmDelete}>
               {t("templateDialog.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unified Template Update Impact Confirmation Dialog */}
+      <AlertDialog
+        open={impactConfirmState.open}
+        onOpenChange={(isOpen) =>
+          setImpactConfirmState((prev) => ({ ...prev, open: isOpen }))
+        }
+      >
+        <AlertDialogContent className="max-w-md sm:max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-semibold">
+              {t("templateDialog.confirmUpdateImpactTitle")}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="pt-1 text-xs text-muted-foreground">
+              {t("templateDialog.confirmUpdateImpactDesc", {
+                count:
+                  impactConfirmState.matchedEntitiesCount +
+                  impactConfirmState.matchedConnectionsCount,
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="flex flex-col gap-3 py-2 text-xs">
+            {/* 1. Deleted fields */}
+            {impactConfirmState.deletedRecords.length > 0 && (
+              <div className="flex flex-col gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 p-2.5">
+                <span className="font-semibold text-destructive">
+                  {t("templateDialog.impactDeletedRecords", {
+                    count: impactConfirmState.deletedRecords.length,
+                  })}
+                </span>
+                <ul className="list-inside list-disc space-y-0.5 text-muted-foreground">
+                  {impactConfirmState.deletedRecords.map((r) => (
+                    <li key={r.name}>
+                      <span className="font-medium text-foreground">
+                        {r.name}
+                      </span>{" "}
+                      ({getTypeLabel(r.type, t)}
+                      {r.isArray ? ` - ${t("templateDialog.array")}` : ""})
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Checkbox: delete from all entities */}
+                <div className="mt-1 flex items-start gap-2 border-t border-destructive/20 pt-2">
+                  <Checkbox
+                    id="impact-delete-entities"
+                    checked={impactConfirmState.deleteFromEntities}
+                    onCheckedChange={(c) =>
+                      setImpactConfirmState((prev) => ({
+                        ...prev,
+                        deleteFromEntities: Boolean(c),
+                      }))
+                    }
+                  />
+                  <FieldLabel
+                    htmlFor="impact-delete-entities"
+                    className="cursor-pointer text-[11px] font-normal leading-tight text-foreground select-none"
+                  >
+                    {t("templateDialog.impactDeleteFromEntitiesOption", {
+                      count:
+                        impactConfirmState.matchedEntitiesCount +
+                        impactConfirmState.matchedConnectionsCount,
+                    })}
+                  </FieldLabel>
+                </div>
+              </div>
+            )}
+
+            {/* 2. Changed types / list structure */}
+            {impactConfirmState.changedTypes.length > 0 && (
+              <div className="flex flex-col gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5">
+                <span className="font-semibold text-amber-600 dark:text-amber-400">
+                  {t("templateDialog.impactTypeChanges")}
+                </span>
+                <ul className="list-inside list-disc space-y-0.5 text-muted-foreground">
+                  {impactConfirmState.changedTypes.map((c) => (
+                    <li key={c.name}>
+                      <span className="font-medium text-foreground">
+                        {c.name}
+                      </span>
+                      : {getTypeLabel(c.oldType, t)}
+                      {c.wasArray ? " []" : ""} →{" "}
+                      <span className="font-semibold text-foreground">
+                        {getTypeLabel(c.newType, t)}
+                        {c.isArray ? " []" : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* 3. Reorder impact */}
+            {impactConfirmState.isOrderChanged && (
+              <div className="rounded-md border border-border/70 bg-muted/40 p-2.5 text-muted-foreground">
+                <p>
+                  {t("templateDialog.impactOrderChanges", {
+                    count:
+                      impactConfirmState.matchedEntitiesCount +
+                      impactConfirmState.matchedConnectionsCount,
+                  })}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() =>
+                setImpactConfirmState((prev) => ({ ...prev, open: false }))
+              }
+            >
+              {t("common.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (impactConfirmState.payload) {
+                  executeSaveTemplate(
+                    impactConfirmState.payload,
+                    impactConfirmState.deleteFromEntities,
+                    impactConfirmState.renameMap
+                  )
+                }
+              }}
+            >
+              {t("templateDialog.applyAndSync")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

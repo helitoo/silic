@@ -307,7 +307,7 @@ export function LandingPage() {
               <div className="size-2.5 rounded-full bg-rose-500/80" />
               <div className="size-2.5 rounded-full bg-amber-500/80" />
               <div className="size-2.5 rounded-full bg-emerald-500/80" />
-              <span className="ml-2 font-mono text-xs font-medium text-muted-foreground">
+              <span className="ml-2 text-xs font-medium text-muted-foreground">
                 silic://entity-preview-runtime
               </span>
             </div>

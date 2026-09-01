@@ -1,8 +1,15 @@
-import { ArrowLeft, Edit3, Tag, Trash2 } from "lucide-react"
-import type { Entity } from "@/lib/types"
-import { getEntityName, getEntityColor } from "@/lib/utils"
+import { ArrowLeft, Copy, Edit3, Tag, Trash2 } from "lucide-react"
+import type { Connection, Entity } from "@/lib/types"
+import {
+  getEntityName,
+  getEntityColor,
+  deleteRecordFiles,
+  duplicateRecordFiles,
+} from "@/lib/utils"
 import { useEntity } from "@/contexts/EntityContext"
+import { useConnection } from "@/contexts/ConnectionContext"
 import { useTemplate } from "@/contexts/TemplateContext"
+import { useProjectStorage } from "@/contexts/ProjectStorageContext"
 import { useLang } from "@/contexts/LangContext"
 import { toast } from "@/components/ui/toast"
 import { Button } from "@/components/ui/button"
@@ -21,8 +28,10 @@ export function EntityDetailHeader({
   onEdit,
   onDelete,
 }: EntityDetailHeaderProps) {
-  const { delete: deleteEntity } = useEntity()
+  const { put: putEntity, delete: deleteEntity } = useEntity()
+  const { connections, put: putConnection } = useConnection()
   const { templates } = useTemplate()
+  const { removeAttachment, duplicateFile } = useProjectStorage()
   const { t } = useLang()
 
   const name = getEntityName(entity)
@@ -31,7 +40,69 @@ export function EntityDetailHeader({
     ? templates.find((tpl) => tpl.id === entity.template)
     : null
 
-  const handleDelete = () => {
+  const handleDuplicate = async () => {
+    // 1. Duplicate entity records and their binary files
+    const newRecords = (entity.records || []).map((rec) => ({
+      ...rec,
+      id: crypto.randomUUID(),
+    }))
+
+    const recordsWithDuplicatedFiles = await duplicateRecordFiles(
+      newRecords,
+      duplicateFile
+    )
+
+    const newEntityId = crypto.randomUUID()
+    const newEntity: Entity = {
+      id: newEntityId,
+      template: entity.template,
+      records: recordsWithDuplicatedFiles,
+    }
+
+    putEntity(newEntity)
+
+    // 2. Duplicate all relationships / connections involving this entity
+    for (const conn of connections) {
+      const involvesFrom = conn.from.includes(entity.id)
+      const involvesTo = conn.to.includes(entity.id)
+
+      if (involvesFrom || involvesTo) {
+        const newFrom = conn.from.map((f) =>
+          f === entity.id ? newEntityId : f
+        )
+        const newTo = conn.to.map((tItem) =>
+          tItem === entity.id ? newEntityId : tItem
+        )
+        const newConnRecords = (conn.records || []).map((rec) => ({
+          ...rec,
+          id: crypto.randomUUID(),
+        }))
+
+        const newConnRecordsWithFiles = await duplicateRecordFiles(
+          newConnRecords,
+          duplicateFile
+        )
+
+        const duplicatedConn: Connection = {
+          id: crypto.randomUUID(),
+          from: newFrom,
+          to: newTo,
+          isDirectional: conn.isDirectional,
+          template: conn.template,
+          records: newConnRecordsWithFiles,
+        }
+        putConnection(duplicatedConn)
+      }
+    }
+
+    toast.add({
+      type: "success",
+      title: t("entityDetailPage.duplicatedSuccess"),
+    })
+  }
+
+  const handleDelete = async () => {
+    await deleteRecordFiles(entity.records, removeAttachment)
     if (onDelete) {
       onDelete()
     } else {
@@ -48,8 +119,7 @@ export function EntityDetailHeader({
     colors.length > 0
       ? `linear-gradient(to right, transparent 0%, ${colors
           .map(
-            (c, idx) =>
-              `${c} ${Math.round(((idx + 1) / colors.length) * 100)}%`
+            (c, idx) => `${c} ${Math.round(((idx + 1) / colors.length) * 100)}%`
           )
           .join(", ")})`
       : undefined
@@ -59,7 +129,7 @@ export function EntityDetailHeader({
       {/* Right-aligned 1/2 viewport width gradient background from entity colors */}
       {gradientBackground && (
         <div
-          className="pointer-events-none absolute -top-6 -bottom-6 right-0 w-[50vw] max-w-full opacity-30 dark:opacity-35 blur-xl transition-all duration-300"
+          className="pointer-events-none absolute -top-6 right-0 -bottom-6 w-[50vw] max-w-full opacity-30 blur-xl transition-all duration-300 dark:opacity-35"
           style={{ background: gradientBackground }}
           aria-hidden="true"
         />
@@ -94,6 +164,17 @@ export function EntityDetailHeader({
 
           <Button
             type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleDuplicate}
+            className="gap-1.5"
+          >
+            <Copy className="size-3.5" />
+            <span>{t("entityDetailPage.duplicate")}</span>
+          </Button>
+
+          <Button
+            type="button"
             onClick={onEdit}
             size="sm"
             className="gap-2 shadow-xs"
@@ -121,7 +202,7 @@ export function EntityDetailHeader({
           </div>
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="rounded border border-border/40 bg-muted/60 px-1.5 py-0.5 font-mono text-[11px] select-all">
+            <span className="rounded border border-border/40 bg-muted/60 px-1.5 py-0.5 text-[11px] select-all">
               {entity.id}
             </span>
             <CopyButton content={entity.id} />

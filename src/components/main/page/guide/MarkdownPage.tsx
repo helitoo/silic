@@ -16,10 +16,7 @@ import { Button } from "@/components/ui/button"
 
 export interface MarkdownPageProps {
   doc:
-    | "silic-query"
-    | "silic-storage"
-    | "terms-of-service"
-    | "policy-of-privacy"
+    "silic-query" | "silic-storage" | "terms-of-service" | "policy-of-privacy"
 }
 
 export function MarkdownPage({ doc }: MarkdownPageProps) {
@@ -189,7 +186,7 @@ export function MarkdownPage({ doc }: MarkdownPageProps) {
                   if (isInline) {
                     return (
                       <code
-                        className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-semibold text-primary"
+                        className="rounded bg-muted px-1.5 py-0.5 text-xs font-semibold text-primary"
                         {...props}
                       >
                         {children}
@@ -198,7 +195,7 @@ export function MarkdownPage({ doc }: MarkdownPageProps) {
                   }
                   return (
                     <code
-                      className={`block font-mono text-xs ${className || ""}`}
+                      className={`block text-xs ${className || ""}`}
                       {...props}
                     >
                       {children}
@@ -206,7 +203,7 @@ export function MarkdownPage({ doc }: MarkdownPageProps) {
                   )
                 },
                 pre: ({ children }) => (
-                  <pre className="my-4 overflow-x-auto rounded-xl border border-border/80 bg-muted/40 p-4 font-mono text-xs leading-normal">
+                  <pre className="my-4 overflow-x-auto rounded-xl border border-border/80 bg-muted/40 p-4 text-xs leading-normal">
                     {children}
                   </pre>
                 ),

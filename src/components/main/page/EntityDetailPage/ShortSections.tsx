@@ -11,9 +11,11 @@ import {
 } from "lucide-react"
 import type { Entity, Type, Connection } from "@/lib/types"
 import { getTypeIcon } from "@/lib/template-utils"
-import { getEntityName, getConnectionName } from "@/lib/utils"
+import { getEntityName, getConnectionName, hasRecordValue } from "@/lib/utils"
+
 import { useConnection } from "@/contexts/ConnectionContext"
 import { useEntity } from "@/contexts/EntityContext"
+import { useTemplate } from "@/contexts/TemplateContext"
 import { useProjectStorage } from "@/contexts/ProjectStorageContext"
 import { useLang } from "@/contexts/LangContext"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,6 +44,7 @@ interface GalleryItem {
 export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
   const { connections } = useConnection()
   const { entities } = useEntity()
+  const { templates } = useTemplate()
   const { attachments } = useProjectStorage()
   const { t } = useLang()
 
@@ -66,9 +69,12 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
     initialIndex: 0,
   })
 
-  // 1. Separate Image records
+  // 1. Separate Image records with value
   const imageRecords = React.useMemo(
-    () => (entity.records || []).filter((r) => r.type === "image"),
+    () =>
+      (entity.records || []).filter(
+        (r) => r.type === "image" && hasRecordValue(r)
+      ),
     [entity.records]
   )
 
@@ -128,9 +134,15 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
     return list
   }, [otherImageRecords, getImageCaption])
 
-  // 2. Filter other short records (excluding longText, video, audio, image)
-  const shortRecords = (entity.records || []).filter(
-    (r) => !["longText", "video", "audio", "image"].includes(r.type)
+  // 2. Filter other short records (excluding longText, video, audio, image) that have non-empty value
+  const shortRecords = React.useMemo(
+    () =>
+      (entity.records || []).filter(
+        (r) =>
+          !["longText", "video", "audio", "image"].includes(r.type) &&
+          hasRecordValue(r)
+      ),
+    [entity.records]
   )
 
   // 3. Find connections involving this entity
@@ -188,7 +200,7 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
             return (
               <span
                 key={idx}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/50 px-2 py-0.5 font-mono text-xs text-foreground"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/50 px-2 py-0.5 text-xs text-foreground"
               >
                 {type === "color" && (
                   <span
@@ -232,7 +244,7 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
             className="size-4 shrink-0 rounded-xs border border-border/80 shadow-2xs"
             style={{ backgroundColor: colorVal }}
           />
-          <span className="font-mono text-xs font-medium text-foreground">
+          <span className="text-xs font-medium text-foreground">
             {colorVal}
           </span>
         </div>
@@ -242,7 +254,7 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
     if (type === "file") {
       const fileStr = String(val)
       return (
-        <div className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/40 px-2 py-1 font-mono text-xs text-foreground">
+        <div className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-xs text-foreground">
           <File className="size-3.5 shrink-0 text-muted-foreground" />
           <span className="break-all">{fileStr}</span>
         </div>
@@ -260,7 +272,7 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
           href={href}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1.5 font-mono text-xs break-all text-primary hover:underline"
+          className="inline-flex items-center gap-1.5 text-xs break-all text-primary hover:underline"
         >
           <span>{urlStr}</span>
           <ExternalLink className="size-3 shrink-0" />
@@ -285,8 +297,7 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
     }
 
     if (type === "date" || type === "dateTime" || type === "time") {
-      const d =
-        val instanceof Date ? val : new Date(val as string | number)
+      const d = val instanceof Date ? val : new Date(val as string | number)
       const formatted = !isNaN(d.getTime())
         ? type === "date"
           ? d.toLocaleDateString()
@@ -296,16 +307,14 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
         : String(val)
 
       return (
-        <span className="rounded border border-border/40 bg-muted/40 px-2 py-0.5 font-mono text-xs text-foreground">
+        <span className="rounded border border-border/40 bg-muted/40 px-2 py-0.5 text-xs text-foreground">
           {formatted}
         </span>
       )
     }
 
     return (
-      <span className="font-mono text-xs break-words text-foreground">
-        {String(val)}
-      </span>
+      <span className="text-xs break-words text-foreground">{String(val)}</span>
     )
   }
 
@@ -323,7 +332,7 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
                 </span>
               </div>
               {firstImageValues.length > 1 && (
-                <span className="font-mono text-[11px] text-muted-foreground">
+                <span className="text-[11px] text-muted-foreground">
                   {firstImageValues.length} images
                 </span>
               )}
@@ -405,7 +414,7 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
                 {t("entityDetailPage.otherRecords")}
               </CardTitle>
             </div>
-            <span className="font-mono text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {shortRecords.length}
             </span>
           </div>
@@ -466,7 +475,7 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
                 {t("entityDetailPage.connections")}
               </CardTitle>
             </div>
-            <span className="font-mono text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {relevantConns.length}
             </span>
           </div>
@@ -483,10 +492,9 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
                 const partner = entities.find(
                   (e) => e.id === connItem.partnerId
                 )
-                const partnerName = getEntityName(partner) || connItem.partnerId
+                const partnerName = getEntityName(partner)
                 const connName =
-                  getConnectionName(connItem.connectionObj) ||
-                  connItem.connectionId
+                  getConnectionName(connItem.connectionObj, templates) || "(?)"
 
                 return (
                   <div
@@ -494,26 +502,26 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
                     className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/60 p-2.5 transition-all hover:border-border"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate font-mono text-xs font-semibold text-foreground">
+                      <span className="truncate text-xs font-semibold text-foreground">
                         {connName}
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-md bg-muted/70 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                         {connItem.isDirectional ? (
                           connItem.isOutbound ? (
                             <>
-                              <ArrowRight className="size-3" />
-                              <span>Outbound</span>
+                              <ArrowLeft className="size-3" />
+                              <span>{t("entityDialog.outbound")}</span>
                             </>
                           ) : (
                             <>
-                              <ArrowLeft className="size-3" />
-                              <span>Inbound</span>
+                              <ArrowRight className="size-3" />
+                              <span>{t("entityDialog.inbound")}</span>
                             </>
                           )
                         ) : (
                           <>
                             <ArrowLeftRight className="size-3" />
-                            <span>Undirected</span>
+                            <span>{t("entityDialog.undirected")}</span>
                           </>
                         )}
                       </span>
@@ -521,7 +529,7 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
 
                     <div className="flex items-center justify-between border-t border-border/30 pt-2 text-xs">
                       <span className="text-[11px] text-muted-foreground">
-                        Target:
+                        {t("entityDialog.targetEntity")}:
                       </span>
                       {partner ? (
                         <button
@@ -533,7 +541,7 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
                           {partnerName}
                         </button>
                       ) : (
-                        <span className="truncate font-mono text-muted-foreground">
+                        <span className="truncate text-muted-foreground">
                           {connItem.partnerId}
                         </span>
                       )}
@@ -599,7 +607,7 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
                       className="relative z-10 size-full object-contain transition-transform duration-300 group-hover:scale-102"
                     />
                   </div>
-                  <p className="mt-1 truncate text-center font-mono text-[10px] text-muted-foreground">
+                  <p className="mt-1 truncate text-center text-[10px] text-muted-foreground">
                     {item.title}
                   </p>
                 </div>
@@ -621,4 +629,3 @@ export function ShortSections({ entity, onSelectEntity }: ShortSectionsProps) {
 }
 
 export default ShortSections
-

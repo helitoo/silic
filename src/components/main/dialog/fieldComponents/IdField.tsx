@@ -30,7 +30,7 @@ export function IdField({
           value={id}
           disabled
           readOnly
-          className="flex-1 cursor-not-allowed bg-muted/40 font-mono text-xs select-all"
+          className="flex-1 cursor-not-allowed bg-muted/40 text-xs select-all"
           placeholder={placeholder}
           required
         />

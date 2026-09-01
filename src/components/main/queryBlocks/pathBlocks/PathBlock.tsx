@@ -14,11 +14,12 @@ export interface PathBlockProps {
 }
 
 export function PathBlock({
-  query = { from: "entity-alice", to: "entity-mega", via: [] },
+  query = { from: "", to: "", via: [] },
   onChange,
   onDelete,
   className,
 }: PathBlockProps) {
+
   const { t } = useLang()
 
   const handleFromChange = (fromId: string) => {

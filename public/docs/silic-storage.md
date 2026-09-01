@@ -69,9 +69,11 @@ The central context managing current project state, automatic synchronization wi
 | `fileName`               | `string`                                  | Current project name (displayed in title bar and used as export filename).                                  |
 | `setFileName`            | `(name: string) => void`                  | Updates the project name.                                                                                    |
 | `attachments`            | `AttachmentMeta[]`                        | List of metadata for all attachments in the project (`{ id, mimeType, size, caption }`).                    |
-| `addAttachment`          | `(file: File, customId?: string, caption?: string) => Promise<AttachmentMeta>` | Saves file to IndexedDB, generates attachment metadata with default caption set to ID.                      |
+| `addAttachment`          | `(file: File, customId?: string, caption?: string) => Promise<AttachmentMeta>` | Saves file to IndexedDB, generates attachment metadata with default caption set to file name (or ID fallback). |
 | `updateAttachmentCaption`| `(id: string, caption: string) => Promise<void>` | Updates the caption for an attachment in IndexedDB and React state.                                         |
 | `removeAttachment`       | `(id: string) => Promise<void>`           | Deletes an attachment by ID from IndexedDB and updates the metadata list.                                    |
+| `duplicateFile` / `duplicateAttachment` | `(oldId: string, customId?: string, caption?: string) => Promise<AttachmentMeta \| null>` | Clones an attachment's binary Blob in IndexedDB with a new UUID and registers duplicate metadata.            |
+| `cleanupOrphanedAttachments` | `() => Promise<number>`                   | Scans and purges any binary files in IndexedDB not referenced by any entity or connection.                    |
 | `exportProjectSilic`     | `(customName?: string) => Promise<void>`  | Packages all project state and attachments into a `.silic` file and downloads it.                            |
 | `importProjectSilic`     | `(file: File) => Promise<void>`           | Unpacks `.silic` file, reloads entities, connections, templates, and overwrites attachments in IndexedDB.    |
 | `newProject`             | `() => Promise<void>`                     | Creates a new project, clearing all data and resetting state to a blank canvas.                              |
@@ -433,3 +435,197 @@ sequenceDiagram
         DialogUI->>DialogUI: Reset form to initial default state
     end
 ```
+
+---
+
+## 8. Item Duplication Flow & Binary File Cloning Mechanism
+
+Silic provides a one-click **"Duplicate" ("Tạo bản sao")** action within `EntitiesDialog`, `ConnectionDialog`, and `TemplateDialog`. This creates an independent clone of the selected item without side-effects on original data.
+
+### 8.1. Duplication Architecture Principles
+
+1. **New Unique IDs**: The duplicate object and all its internal record definitions receive brand new UUIDs (`crypto.randomUUID()`).
+2. **Deep Binary Media Cloning (`duplicateFile`)**:
+   - For records of type `"image"`, `"video"`, `"audio"`, or `"file"`, referencing the same original attachment ID is avoided.
+   - Instead, `duplicateFile` reads the original `Blob` from IndexedDB, creates an isolated binary slice (`stored.blob.slice()`), assigns a new UUID in the `attachments` store, and links the new ID to the duplicated record.
+   - Both single media values and array/list values (`isArray: true`) are recursively duplicated via `duplicateRecordFiles()`.
+3. **Relationship Cascading (Entity Duplication)**:
+   - When an Entity is duplicated, all Relationships (`Connection`) involving the source entity (`from` or `to`) are automatically cloned.
+   - The connection endpoints are remapped to point to the new Entity ID.
+   - Any media attachments embedded inside the duplicated relationships are also independently cloned in storage.
+
+### 8.2. Duplication Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User
+    participant DialogUI as EntitiesDialog / ConnectionDialog
+    participant Utils as duplicateRecordFiles (utils.ts)
+    participant StorageCtx as ProjectStorageContext
+    participant IDB as IndexedDB (silic-db)
+    participant EntityCtx as EntityContext / ConnectionContext
+
+    User->>DialogUI: Click "Duplicate" ("Tạo bản sao")
+    DialogUI->>DialogUI: Validate & assemble form records
+    DialogUI->>Utils: duplicateRecordFiles(validRecords, duplicateFile)
+
+    loop For each media record ("image" | "video" | "audio" | "file")
+        Utils->>StorageCtx: duplicateFile(oldAttachmentId)
+        StorageCtx->>IDB: getAttachment(oldAttachmentId)
+        IDB-->>StorageCtx: Return original StoredAttachment (with Blob)
+        StorageCtx->>StorageCtx: Generate new UUID (newId = crypto.randomUUID())
+        StorageCtx->>StorageCtx: Clone blob = stored.blob.slice(...)
+        StorageCtx->>IDB: saveAttachment({ id: newId, blob: newBlob, ... })
+        StorageCtx->>StorageCtx: Update state attachments: [...prev, meta]
+        StorageCtx-->>Utils: Return new AttachmentMeta (newId)
+        Utils->>Utils: Replace record value with newId
+    end
+
+    Utils-->>DialogUI: Return recordsWithDuplicatedFiles
+
+    DialogUI->>DialogUI: Construct new Entity / Connection object with new UUID
+    DialogUI->>EntityCtx: put(newEntity / newConnection)
+
+    opt When duplicating an Entity (Cascade Relationships)
+        loop For each linked Connection
+            DialogUI->>Utils: duplicateRecordFiles(conn.records, duplicateFile)
+            Utils-->>DialogUI: Return newConnRecordsWithFiles
+            DialogUI->>EntityCtx: putConnection(duplicatedConnection)
+        end
+    end
+
+    DialogUI->>DialogUI: onOpenChange(false) (Close Dialog)
+    DialogUI->>User: Display success Toast notification
+```
+
+---
+
+## 9. Entity & Connection Deletion Lifecycle & File Cleanup Mechanism
+
+To maintain storage hygiene and prevent orphaned binary Blobs from lingering in IndexedDB, Silic implements an automated cascading cleanup pipeline whenever an Entity or Connection is removed.
+
+### 9.1. Deletion Lifecycle Architecture
+
+1. **Explicit User Confirmation**: Destructive delete actions require user confirmation via `AlertDialog` (`src/components/ui/alert-dialog.tsx`) to guard against unintended data loss.
+2. **Cascading Media Attachment Deletion (`deleteRecordFiles`)**:
+   - Before removing the metadata node from React state, `deleteRecordFiles` inspects all record fields.
+   - For each `"image"`, `"video"`, `"audio"`, or `"file"` field (single or list values), it invokes `removeAttachment(fileId)`.
+   - `removeAttachment` deletes the physical `Blob` record from IndexedDB (`silic-db` store `attachments`) and updates the `attachments` state array.
+3. **Orphan Connection Purging**:
+   - When modifying an entity's connections in `EntitiesDialog`, if all source and target endpoints are severed (`newFrom.length === 0 && newTo.length === 0`), the orphaned connection and all its associated media files are automatically removed.
+
+### 9.2. Deletion Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User
+    participant ViewUI as EntitiesDialog / EntityDetailPage / ConnectionDialog
+    participant Alert as AlertDialog
+    participant Utils as deleteRecordFiles (utils.ts)
+    participant StorageCtx as ProjectStorageContext
+    participant IDB as IndexedDB (silic-db)
+    participant Ctx as EntityContext / ConnectionContext
+
+    User->>ViewUI: Click "Delete" button
+    ViewUI->>Alert: Open confirmation dialog
+    User->>Alert: Confirm Delete action
+
+    Alert->>ViewUI: Trigger confirmDelete()
+    ViewUI->>Utils: deleteRecordFiles(item.records, removeAttachment)
+
+    loop For each media record ("image" | "video" | "audio" | "file")
+        Utils->>StorageCtx: removeAttachment(attachmentId)
+        StorageCtx->>IDB: deleteAttachment(attachmentId)
+        IDB-->>StorageCtx: Purge binary Blob from attachments store
+        StorageCtx->>StorageCtx: Update state attachments (filter out attachmentId)
+    end
+
+    Utils-->>ViewUI: File cleanup completed
+
+    ViewUI->>Ctx: deleteEntity(id) / deleteConnection(id)
+    Ctx->>Ctx: Update entities / connections state array
+    Note over Ctx,IDB: Auto-save debounced sync writes updated state to IndexedDB
+
+    ViewUI->>ViewUI: Close Dialog / Navigate back
+    ViewUI->>User: Display deletion success Toast notification
+```
+
+---
+
+## 10. Storage Quota Pre-Estimation & Orphan Asset Garbage Collection Flow
+
+To protect data integrity and prevent unpredictable browser write crashes, Silic integrates an automated **Storage Quota Pre-Estimation & Garbage Collection** pipeline before saving any new binary assets.
+
+### 10.1. Quota Management Architecture Principles
+
+1. **Proactive Pre-Estimation (`navigator.storage.estimate`)**:
+   - Before executing `saveAttachment` for a new file upload or duplicate action, `checkStorageQuotaAndPrepare` queries `navigator.storage.estimate()`.
+   - Computes available storage `available = quota - usage`.
+   - Accounts for a **5MB Safety Buffer (`SAFETY_MARGIN`)** to ensure essential metadata and indexing transactions never fail.
+2. **Automated Orphan Asset Detection (`getReferencedAttachmentIds`)**:
+   - Gathers all attachment IDs referenced across all `entities` and `connections` in the project.
+   - Compares this set against the total entries in IndexedDB's `attachments` store to identify unreferenced/orphaned files.
+3. **Self-Healing Storage Cleanup (`cleanupOrphanedAttachments`)**:
+   - If incoming file size exceeds remaining quota, the system automatically purges all orphaned attachments from IndexedDB.
+   - Re-estimates storage quota post-cleanup.
+4. **Storage Full Alert Modal (`AlertDialog`)**:
+   - If quota is still insufficient after garbage collection, the file operation is aborted safely.
+   - An `AlertDialog` popup (`t("projectStorage.quotaExceededTitle")`) notifies the user that browser storage is exhausted and advises exporting to a `.silic` file or removing unused media.
+
+### 10.2. Quota Estimation & Cleanup Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User
+    participant InputUI as MediaFileInput / Dialog
+    participant StorageCtx as ProjectStorageContext
+    participant BrowserAPI as navigator.storage.estimate()
+    participant IDB as IndexedDB (silic-db)
+    participant Alert as AlertDialog (Storage Full)
+
+    User->>InputUI: Select file to upload / duplicate
+    InputUI->>StorageCtx: addAttachment(file) / duplicateFile(oldId)
+
+    StorageCtx->>BrowserAPI: navigator.storage.estimate()
+    BrowserAPI-->>StorageCtx: Return { quota, usage }
+    StorageCtx->>StorageCtx: Calculate available = quota - usage
+
+    alt 1. Sufficient Quota (fileSize + 5MB <= available)
+        StorageCtx->>IDB: saveAttachment({ id, mimeType, size, blob })
+        IDB-->>StorageCtx: Saved successfully
+        StorageCtx-->>InputUI: Return AttachmentMeta
+    else 2. Insufficient Quota (fileSize + 5MB > available)
+        Note over StorageCtx: Storage near capacity! Attempting orphan cleanup...
+        StorageCtx->>StorageCtx: Scan entities & connections -> referencedIds
+        StorageCtx->>IDB: getAllAttachments()
+        IDB-->>StorageCtx: Return all stored attachments
+
+        StorageCtx->>StorageCtx: Filter orphaned = allStored.filter(id NOT in referencedIds)
+
+        alt Orphaned files found
+            loop For each orphaned file
+                StorageCtx->>IDB: deleteAttachment(orphanId)
+            end
+            StorageCtx->>StorageCtx: Update state attachments & show Info Toast
+
+            StorageCtx->>BrowserAPI: navigator.storage.estimate() (Re-estimate)
+            BrowserAPI-->>StorageCtx: Return updated { quota, usage }
+            StorageCtx->>StorageCtx: Re-calculate available space
+        end
+
+        alt Space recovered after cleanup (fileSize + 5MB <= newAvailable)
+            StorageCtx->>IDB: saveAttachment({ id, mimeType, size, blob })
+            IDB-->>StorageCtx: Saved successfully
+            StorageCtx-->>InputUI: Return AttachmentMeta
+        else Storage still full (fileSize + 5MB > newAvailable)
+            StorageCtx->>Alert: Open Storage Full Alert Dialog
+            StorageCtx->>User: Display Error Toast ("Storage Quota Exceeded")
+            StorageCtx-->>InputUI: Abort operation & throw Error
+        end
+    end
+```
+
+

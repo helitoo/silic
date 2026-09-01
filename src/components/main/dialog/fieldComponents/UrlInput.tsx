@@ -1,3 +1,4 @@
+import * as React from "react"
 import { ExternalLink } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -11,7 +12,7 @@ export interface UrlInputProps {
   className?: string
 }
 
-export function UrlInput({
+export const UrlInput = React.memo(function UrlInput({
   value,
   onChange,
   placeholder = "https://...",
@@ -19,6 +20,18 @@ export function UrlInput({
   disabled = false,
   className,
 }: UrlInputProps) {
+  const [localVal, setLocalVal] = React.useState(value ?? "")
+
+  React.useEffect(() => {
+    setLocalVal(value ?? "")
+  }, [value])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.value
+    setLocalVal(next)
+    onChange(next)
+  }
+
   return (
     <div
       className={cn(
@@ -29,21 +42,18 @@ export function UrlInput({
     >
       <Input
         type="url"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={localVal}
+        onChange={handleChange}
         placeholder={placeholder}
         disabled={disabled}
-        className={cn(
-          isSmall ? "h-7 flex-1" : "h-8 w-full",
-          "pr-7 font-mono text-xs"
-        )}
+        className={cn(isSmall ? "h-7 flex-1" : "h-8 w-full", "pr-7 text-xs")}
       />
-      {value && String(value).trim() !== "" && (
+      {localVal && String(localVal).trim() !== "" && (
         <a
           href={
-            String(value).startsWith("http")
-              ? String(value)
-              : `https://${String(value)}`
+            String(localVal).startsWith("http")
+              ? String(localVal)
+              : `https://${String(localVal)}`
           }
           target="_blank"
           rel="noreferrer"
@@ -58,6 +68,7 @@ export function UrlInput({
       )}
     </div>
   )
-}
+})
 
 export default UrlInput
+

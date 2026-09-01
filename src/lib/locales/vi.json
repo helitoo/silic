@@ -60,8 +60,8 @@
     "records": "Thông tin",
     "noConnections": "Không tìm thấy quan hệ nào.",
     "createFirstConnection": "Tạo quan hệ đầu tiên của bạn",
-    "isDirectional": "Có hướng",
-    "isNonDirectional": "Vô hướng"
+    "isDirectional": "1 chiều",
+    "isNonDirectional": "2 chiều"
   },
   "entityDialog": {
     "createTitle": "Tạo thực thể mới",
@@ -69,7 +69,9 @@
     "description": "Cấu hình thông tin và quan hệ của thực thể.",
     "id": "ID",
     "template": "Mẫu áp dụng",
+    "noTemplate": "Không mẫu",
     "applyTemplate": "Áp dụng",
+    "noTemplateApplied": "Đã hủy áp dụng mẫu",
     "records": "Thông tin",
     "addRecord": "Thêm thông tin",
     "deleteRecord": "Xóa thông tin",
@@ -86,9 +88,14 @@
     "targetEntity": "Thực thể liên kết",
     "connectionName": "Tên quan hệ",
     "connectionNamePlaceholder": "VD: worksAt, friend...",
-    "directional": "Có hướng",
+    "directional": "1 chiều",
+    "outbound": "Đến",
+    "inbound": "Đi",
+    "undirected": "2 chiều",
+    "toggleDirection": "Chuyển hướng: Đến (←) / Đi (→) / 2 chiều (↔)",
     "reset": "Đặt lại",
     "delete": "Xóa",
+    "duplicate": "Tạo bản sao",
     "save": "Lưu",
     "create": "Tạo",
     "editMode": "Chỉnh sửa",
@@ -96,6 +103,7 @@
     "createdSuccess": "Tạo thực thể thành công.",
     "updatedSuccess": "Cập nhật thực thể thành công.",
     "deletedSuccess": "Xóa thực thể thành công.",
+    "duplicatedSuccess": "Tạo bản sao thực thể thành công.",
     "confirmDeleteTitle": "Xóa thực thể",
     "confirmDeleteDesc": "Bạn có chắc chắn muốn xóa thực thể này? Hành động này không thể hoàn tác."
   },
@@ -108,14 +116,17 @@
     "to": "Thực thể đích (To)",
     "addFrom": "Thêm thực thể nguồn",
     "addTo": "Thêm thực thể đích",
-    "directional": "Quan hệ có hướng",
+    "directional": "Quan hệ 1 chiều",
     "template": "Mẫu áp dụng",
+    "noTemplate": "Không mẫu",
     "applyTemplate": "Áp dụng",
+    "noTemplateApplied": "Đã hủy áp dụng mẫu",
     "records": "Thông tin",
     "addRecord": "Thêm thông tin",
     "deleteRecord": "Xóa thông tin",
     "reset": "Đặt lại",
     "delete": "Xóa",
+    "duplicate": "Tạo bản sao",
     "save": "Lưu",
     "create": "Tạo",
     "editMode": "Chỉnh sửa",
@@ -123,6 +134,7 @@
     "createdSuccess": "Tạo quan hệ thành công.",
     "updatedSuccess": "Cập nhật quan hệ thành công.",
     "deletedSuccess": "Xóa quan hệ thành công.",
+    "duplicatedSuccess": "Tạo bản sao quan hệ thành công.",
     "confirmDeleteTitle": "Xóa quan hệ",
     "confirmDeleteDesc": "Bạn có chắc chắn muốn xóa quan hệ này? Hành động này không thể hoàn tác."
   },
@@ -155,6 +167,7 @@
     "dragToReorder": "Kéo để đổi thứ tự",
     "reset": "Đặt lại",
     "delete": "Xóa",
+    "duplicate": "Tạo bản sao",
     "save": "Lưu",
     "create": "Tạo",
     "editMode": "Chỉnh sửa",
@@ -162,9 +175,19 @@
     "createdSuccess": "Tạo mẫu thành công.",
     "updatedSuccess": "Cập nhật mẫu thành công.",
     "deletedSuccess": "Xóa mẫu thành công.",
+    "duplicatedSuccess": "Tạo bản sao mẫu thành công.",
     "confirmDeleteTitle": "Xóa mẫu",
-    "confirmDeleteDesc": "Bạn có chắc chắn muốn xóa mẫu này? Hành động này không thể hoàn tác."
+    "confirmDeleteDesc": "Bạn có chắc chắn muốn xóa mẫu này? Hành động này không thể hoàn tác.",
+    "confirmDeleteLinkedDesc": "Hiện đang có {{count}} thực thể thuộc về mẫu này. Khi xóa mẫu, các thực thể sẽ được chuyển về trạng thái không áp dụng mẫu và giữ nguyên toàn bộ dữ liệu hiện có.",
+    "confirmUpdateImpactTitle": "Xác nhận cập nhật mẫu",
+    "confirmUpdateImpactDesc": "Mẫu này đang được liên kết với {{count}} thực thể. Những thay đổi dưới đây sẽ được áp dụng:",
+    "impactDeletedRecords": "Xóa {{count}} thông tin khỏi mẫu:",
+    "impactDeleteFromEntitiesOption": "Đồng thời xóa thông tin này ở tất cả {{count}} thực thể liên quan (nếu không chọn, các thực thể sẽ giữ lại dưới dạng thông tin riêng)",
+    "impactTypeChanges": "Thay đổi kiểu dữ liệu (tự động ép kiểu hoặc xóa giá trị nếu không tương thích):",
+    "impactOrderChanges": "Đồng bộ thứ tự các thông tin cho toàn bộ {{count}} thực thể.",
+    "applyAndSync": "Cập nhật & Đồng bộ"
   },
+
   "types": {
     "shortText": "Chữ",
     "longText": "Văn bản",
@@ -181,6 +204,7 @@
     "color": "Màu sắc"
   },
   "common": {
+    "ok": "Đã hiểu",
     "cancel": "Hủy",
     "confirmDiscardTitle": "Hủy các thay đổi?",
     "confirmDiscardDesc": "Bạn có những thay đổi chưa được lưu. Bạn có chắc chắn muốn đóng và hủy các thay đổi này?",
@@ -229,12 +253,14 @@
   "entityDetailPage": {
     "back": "Quay lại",
     "edit": "Chỉnh sửa",
+    "duplicate": "Tạo bản sao",
     "delete": "Xóa",
     "deletedSuccess": "Xóa thực thể thành công.",
+    "duplicatedSuccess": "Tạo bản sao thực thể thành công.",
     "details": "Chi tiết thực thể",
     "longTextRecords": "Văn bản chi tiết",
     "otherRecords": "Thông tin chi tiết",
-    "noLongText": "Không có trường văn bản nào.",
+    "noLongText": "Không có thông tin văn bản nào.",
     "noOtherRecords": "Không có thông tin nào khác.",
     "template": "Mẫu",
     "noTemplate": "Không áp dụng mẫu",
@@ -276,7 +302,7 @@
     "arrayDesc": "Danh sách nhiều giá trị.",
     "addValue": "Thêm giá trị",
     "valuePlaceholder": "Nhập giá trị...",
-    "entitySelector": "Loại thông tin",
+    "entitySelector": "Thông tin thực thể",
     "entitySelectorDesc": "Lấy thông tin từ thực thể.",
     "connectionSelector": "Thông tin quan hệ",
     "connectionSelectorDesc": "Lấy thông tin từ quan hệ.",
@@ -365,7 +391,7 @@
     "step1Title": "1. Tạo thực thể & Mẫu dữ liệu",
     "step1Desc": "Định nghĩa mẫu có sẵn hoặc tạo trực tiếp thực thể với mọi tổ hợp thông tin tùy biến.",
     "step2Title": "2. Thiết lập quan hệ",
-    "step2Desc": "Liên kết các thực thể bằng quan hệ có hướng hoặc vô hướng cùng các thuộc tính đính kèm phong phú.",
+    "step2Desc": "Liên kết các thực thể bằng quan hệ 1 chiều hoặc 2 chiều cùng các thuộc tính đính kèm phong phú.",
     "step3Title": "3. Khai phá & Truy vấn",
     "step3Desc": "Khám phá đồ thị tương tác, tìm kiếm đường đi ngắn nhất và bóc tách thông tin bằng công cụ truy vấn chuyên sâu.",
     "ctaTitle": "Sẵn sàng tổ chức tư duy theo không gian đồ thị?",
@@ -448,7 +474,7 @@
     "step3Desc": "Liên kết các thực thể thông qua tab quan hệ.",
     "step3Body_prefix": "Kết nối các thực thể lại với nhau thông qua tab ",
     "relationships": "quan hệ",
-    "step3Body_suffix": " (hỗ trợ quan hệ có hướng hoặc vô hướng) để tạo thành mạng lưới liên kết.",
+    "step3Body_suffix": " (hỗ trợ quan hệ 1 chiều hoặc 2 chiều) để tạo thành mạng lưới liên kết.",
     "dataTypesTitle": "12+ KIỂU DỮ LIỆU",
     "types": {
       "shortText": {
@@ -520,5 +546,10 @@
     "shareFileTitle": "Tải file về & Chia sẻ bất kỳ lúc nào",
     "shareFileDesc1_prefix": "Tải file về và chia sẻ bất kỳ lúc nào với định dạng ",
     "shareFileDesc2": "Dễ dàng xuất toàn bộ dự án (kèm hình ảnh, video, âm thanh) thành 1 tệp nén duy nhất để gửi cho bạn bè, sao lưu hoặc mở trên thiết bị khác."
+  },
+  "projectStorage": {
+    "quotaExceededTitle": "Bộ nhớ trình duyệt đã đầy",
+    "quotaExceededDesc": "Dung lượng lưu trữ của trình duyệt (IndexedDB) không đủ để lưu thêm tệp này. Bạn có thể tải file .silic về máy để lưu trữ hoặc xóa bớt các tệp không cần thiết.",
+    "orphansCleaned": "Đã tự động dọn dẹp {{count}} tệp không còn sử dụng để giải phóng dung lượng."
   }
 }

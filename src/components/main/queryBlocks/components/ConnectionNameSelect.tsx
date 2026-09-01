@@ -1,4 +1,5 @@
 import { useConnection } from "@/contexts/ConnectionContext"
+import { useTemplate } from "@/contexts/TemplateContext"
 import { useLang } from "@/contexts/LangContext"
 import { cn, getConnectionName } from "@/lib/utils"
 import {
@@ -26,14 +27,15 @@ export function ConnectionNameSelect({
   disabled = false,
 }: ConnectionNameSelectProps) {
   const { connections } = useConnection()
+  const { templates } = useTemplate()
   const { t } = useLang()
 
   const currentConnection = value
     ? connections.find((c) => c.id === value)
     : null
   const currentDisplayName = currentConnection
-    ? getConnectionName(currentConnection)
-    : value || ""
+    ? getConnectionName(currentConnection, templates)
+    : value ? "(?)" : ""
 
   return (
     <Select
@@ -54,7 +56,7 @@ export function ConnectionNameSelect({
         aria-label={t("query.selectConnection")}
       >
         <SelectValue placeholder={placeholder || t("query.selectConnection")}>
-          <span className="font-mono whitespace-nowrap">
+          <span className="whitespace-nowrap">
             {currentDisplayName || placeholder || t("query.selectConnection")}
           </span>
         </SelectValue>
@@ -62,17 +64,12 @@ export function ConnectionNameSelect({
       <SelectContent align="start" className="w-auto min-w-[180px]">
         <SelectGroup>
           {connections.map((conn) => {
-            const displayName = getConnectionName(conn)
+            const displayName = getConnectionName(conn, templates)
             return (
               <SelectItem key={conn.id} value={conn.id}>
-                <div className="flex flex-col py-0.5 text-left whitespace-nowrap">
-                  <span className="text-xs font-semibold text-foreground">
-                    {displayName}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    ({conn.id})
-                  </span>
-                </div>
+                <span className="text-xs font-semibold text-foreground whitespace-nowrap">
+                  {displayName}
+                </span>
               </SelectItem>
             )
           })}

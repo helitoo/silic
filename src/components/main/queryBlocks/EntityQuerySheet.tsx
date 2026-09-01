@@ -5,6 +5,7 @@ import { useLang } from "@/contexts/LangContext"
 import type { EntityQuery, Expression } from "@/lib/query-types"
 import { toast } from "@/components/ui/toast"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import {
   Dialog,
   DialogContent,
@@ -21,14 +22,6 @@ import { NeutralBlock } from "./expressionBlocks/NeutralBlock"
 import { NotBlock } from "./expressionBlocks/NotBlock"
 import { TranversalBlock } from "./expressionBlocks/TranversalBlock"
 
-const defaultEntityQuery: EntityQuery = {
-  where: {
-    type: "MULTI",
-    operators: [],
-    subjects: [],
-  },
-}
-
 export function EntityQuerySheet() {
   const {
     entityQuery,
@@ -39,15 +32,15 @@ export function EntityQuerySheet() {
   } = useQuery()
   const { t } = useLang()
 
-  // Local query state
+  // Local query state (no default block)
   const [rootNode, setRootNode] = React.useState<QueryNode | null>(
-    entityQuery?.where || defaultEntityQuery.where
+    entityQuery?.where || null
   )
 
   // Sync with context query when dialog opens
   React.useEffect(() => {
-    if (isEntityQueryOpen && entityQuery?.where) {
-      setRootNode(entityQuery.where)
+    if (isEntityQueryOpen) {
+      setRootNode(entityQuery?.where || null)
     }
   }, [isEntityQueryOpen, entityQuery])
 
@@ -68,11 +61,6 @@ export function EntityQuerySheet() {
     setEntityQuery(queryToRun)
     const results = executeEntityQuery(queryToRun)
 
-    // console.log("=== EXECUTING ENTITY QUERY ===")
-    // console.log("Query AST:", JSON.stringify(queryToRun, null, 2))
-    // console.log("Matching Entities Found:", results)
-    // console.log("===============================")
-
     toast.add({
       type: "success",
       title: t("query.executedEntityQuery"),
@@ -81,11 +69,13 @@ export function EntityQuerySheet() {
   }
 
   const handleReset = () => {
-    setRootNode(defaultEntityQuery.where)
+    setRootNode(null)
+    setEntityQuery(undefined)
   }
 
   const handleClear = () => {
     setRootNode(null)
+    setEntityQuery(undefined)
   }
 
   const handleAddRootBlock = (type: BlockType) => {
@@ -164,11 +154,18 @@ export function EntityQuerySheet() {
         </div>
 
         {/* Workspace Area */}
-        <div className="relative flex-1 overflow-auto bg-[#F6F8FA] p-4 select-none sm:p-6 dark:bg-[#16181D]">
+        <div className="relative flex flex-1 flex-col overflow-auto bg-[#F6F8FA] p-4 select-none sm:p-6 dark:bg-[#16181D]">
           {/* Subtle Grid Dot Pattern Background */}
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px] opacity-50 dark:bg-[radial-gradient(#2d3748_1px,transparent_1px)]" />
 
-          <div className="relative z-10 flex w-full max-w-3xl flex-col items-stretch">
+          <div
+            className={cn(
+              "relative z-10 flex w-full flex-col",
+              rootNode
+                ? "max-w-3xl items-stretch"
+                : "flex-1 items-center justify-center"
+            )}
+          >
             {rootNode ? (
               <div className="flex w-full flex-col items-stretch gap-2">
                 <QueryNodeRenderer
@@ -182,7 +179,7 @@ export function EntityQuerySheet() {
                 />
               </div>
             ) : (
-              <div className="flex w-full flex-col items-center justify-center gap-3 py-20 text-center">
+              <div className="flex flex-col items-center justify-center gap-3 text-center">
                 <p className="text-xs font-medium text-muted-foreground">
                   {t("query.selectBlock")}
                 </p>

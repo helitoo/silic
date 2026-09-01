@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -28,7 +27,7 @@ export function LongTextEditorDialog({
   onOpenChange,
   initialContent = "",
   title,
-  description,
+  description: _description,
   onSave,
 }: LongTextEditorDialogProps) {
   const { t } = useLang()
@@ -36,6 +35,9 @@ export function LongTextEditorDialog({
   const editor = useEditor({
     extensions: [StarterKit],
     content: initialContent || "",
+    parseOptions: {
+      preserveWhitespace: "full",
+    },
     immediatelyRender: false,
     editorProps: {
       attributes: {
@@ -48,7 +50,11 @@ export function LongTextEditorDialog({
   // Synchronize content when dialog opens
   React.useEffect(() => {
     if (open && editor) {
-      editor.commands.setContent(initialContent || "")
+      editor.commands.setContent(initialContent || "", {
+        parseOptions: {
+          preserveWhitespace: "full",
+        },
+      })
     }
   }, [open, initialContent, editor])
 
@@ -74,18 +80,13 @@ export function LongTextEditorDialog({
       <DialogContent className="flex h-full max-h-full w-full max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[88vh] sm:max-h-[90vh] sm:max-w-4xl sm:rounded-xl">
         {/* Dialog Header */}
         <DialogHeader className="border-b border-border/50 bg-muted/20 px-5 py-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex size-8.5 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-xs">
               <FileText className="size-4" />
             </div>
-            <div>
-              <DialogTitle className="text-sm font-semibold sm:text-base">
-                {title || t("editor.title")}
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground">
-                {description || t("editor.description")}
-              </DialogDescription>
-            </div>
+            <DialogTitle className="truncate text-sm font-bold text-foreground sm:text-base">
+              {title || t("editor.title")}
+            </DialogTitle>
           </div>
         </DialogHeader>
 
@@ -93,10 +94,7 @@ export function LongTextEditorDialog({
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
           <Menubar editor={editor} className="shrink-0" />
           <div className="relative min-h-0 flex-1 overflow-y-auto bg-background/50">
-            <EditorContent
-              editor={editor}
-              className="h-full w-full"
-            />
+            <EditorContent editor={editor} className="h-full w-full" />
           </div>
         </div>
 

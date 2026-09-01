@@ -157,7 +157,7 @@ export function TableView({
               >
                 {/* ID Cell */}
                 {showIdAndNeighbours && (
-                  <TableCell className="py-3 font-mono text-xs font-medium text-foreground">
+                  <TableCell className="py-3 text-xs font-medium text-foreground">
                     <div className="flex items-center gap-2">
                       <div className="size-2 shrink-0 rounded-full bg-primary/70 transition-colors group-hover:bg-primary" />
                       <span className="truncate">{entity.id}</span>
@@ -182,7 +182,7 @@ export function TableView({
                   return (
                     <TableCell
                       key={colName}
-                      className="max-w-[240px] truncate py-3 font-mono text-xs text-foreground"
+                      className="max-w-[240px] truncate py-3 text-xs text-foreground"
                       title={displayVal}
                     >
                       {displayVal}
@@ -193,7 +193,7 @@ export function TableView({
                 {/* Neighbours Count */}
                 {showIdAndNeighbours && (
                   <TableCell className="py-3 text-right">
-                    <span className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                       <GitCommit className="size-3.5 stroke-[2]" />
                       <span>{neighboursCount}</span>
                     </span>

@@ -13,6 +13,23 @@ export interface MenubarProps {
 
 export function Menubar({ editor, className }: MenubarProps) {
   const { t } = useLang()
+  const [, setTick] = React.useState(0)
+
+  React.useEffect(() => {
+    if (!editor) return
+
+    const handleUpdate = () => {
+      setTick((prev) => prev + 1)
+    }
+
+    editor.on("selectionUpdate", handleUpdate)
+    editor.on("transaction", handleUpdate)
+
+    return () => {
+      editor.off("selectionUpdate", handleUpdate)
+      editor.off("transaction", handleUpdate)
+    }
+  }, [editor])
 
   if (!editor) {
     return null

@@ -363,7 +363,7 @@ export function GuidePage() {
             <CardContent className="space-y-2 text-xs leading-relaxed text-muted-foreground">
               <p>
                 {t("guidePage.shareFileDesc1_prefix")}
-                <code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono font-semibold text-primary">
+                <code className="rounded bg-primary/10 px-1.5 py-0.5 font-semibold text-primary">
                   .silic
                 </code>
                 .

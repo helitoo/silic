@@ -35,7 +35,7 @@ function formatFileSize(bytes?: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function MediaFileInput({
+export const MediaFileInput = React.memo(function MediaFileInput({
   type,
   value,
   onChange,
@@ -101,22 +101,10 @@ export function MediaFileInput({
     }
   }, [type])
 
-  const TypeIconComponent = React.useMemo(() => {
-    switch (type) {
-      case "image":
-        return ImageIcon
-      case "video":
-        return VideoIcon
-      case "audio":
-        return AudioIcon
-      default:
-        return FileIcon
-    }
-  }, [type])
-
-  const defaultButtonLabel = React.useMemo(() => {
+  const uploadPlaceholder = React.useMemo(() => {
     if (
       placeholder &&
+      placeholder.trim() !== "" &&
       !placeholder.includes("Nhập giá trị") &&
       !placeholder.includes("Enter value")
     ) {
@@ -129,7 +117,6 @@ export function MediaFileInput({
     if (disabled) return
     const file = await uploadSingleFile({ accept })
     if (file) {
-      // If replacing an existing local attachment, delete the old one from IndexedDB
       if (value && typeof value === "string") {
         try {
           await removeAttachment(value)
@@ -171,13 +158,8 @@ export function MediaFileInput({
           className
         )}
       >
-        <TypeIconComponent
-          className={cn(
-            "shrink-0 transition-transform group-hover/upload:scale-110",
-            isSmall ? "size-3.5" : "size-4"
-          )}
-        />
-        <span className="truncate">{defaultButtonLabel}</span>
+        <Upload className="size-3.5 shrink-0" />
+        <span className="truncate">{uploadPlaceholder}</span>
       </Button>
     )
   }
@@ -211,6 +193,10 @@ export function MediaFileInput({
             className="size-full object-cover"
             onError={() => setImgError(true)}
           />
+        ) : type === "image" ? (
+          <div className="flex size-full items-center justify-center bg-emerald-500/10 text-emerald-500 dark:text-emerald-400">
+            <ImageIcon className={isSmall ? "size-3.5" : "size-4"} />
+          </div>
         ) : url && type === "video" ? (
           <div className="relative flex size-full items-center justify-center bg-black/80">
             <video src={url} className="size-full object-cover opacity-75" />
@@ -292,6 +278,6 @@ export function MediaFileInput({
       </div>
     </div>
   )
-}
+})
 
 export default MediaFileInput

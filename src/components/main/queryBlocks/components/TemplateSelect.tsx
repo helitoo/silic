@@ -16,6 +16,8 @@ export interface TemplateSelectProps {
   className?: string
   placeholder?: string
   disabled?: boolean
+  noTemplateOption?: boolean
+  noneLabel?: string
 }
 
 export function TemplateSelect({
@@ -24,20 +26,27 @@ export function TemplateSelect({
   className,
   placeholder,
   disabled = false,
+  noTemplateOption = false,
+  noneLabel,
 }: TemplateSelectProps) {
   const { templates } = useTemplate()
   const { t } = useLang()
 
+  const fallbackValue = noTemplateOption ? "__NONE__" : "__ALL__"
+  const defaultLabel = noTemplateOption
+    ? noneLabel || t("entityDialog.noTemplate")
+    : t("query.allTemplates")
+
   const selectedTemplateId = Array.isArray(value)
-    ? value[0] || "__ALL__"
-    : value || "__ALL__"
+    ? value[0] || fallbackValue
+    : value || fallbackValue
 
   return (
     <Select
       value={selectedTemplateId}
       disabled={disabled}
       onValueChange={(val) => {
-        if (!val || val === "__ALL__") {
+        if (!val || val === "__ALL__" || val === "__NONE__") {
           onChange(undefined)
         } else {
           onChange([val])
@@ -54,20 +63,21 @@ export function TemplateSelect({
         )}
         aria-label={t("query.selectTemplate")}
       >
-        <SelectValue placeholder={placeholder || t("query.allTemplates")}>
+        <SelectValue placeholder={placeholder || defaultLabel}>
           <span className="whitespace-nowrap">
-            {selectedTemplateId === "__ALL__"
-              ? t("query.allTemplates")
+            {selectedTemplateId === "__ALL__" ||
+            selectedTemplateId === "__NONE__"
+              ? defaultLabel
               : templates.find((tItem) => tItem.id === selectedTemplateId)
-                  ?.name || selectedTemplateId}
+                  ?.name || "(?)"}
           </span>
         </SelectValue>
       </SelectTrigger>
       <SelectContent align="start" className="w-auto min-w-max">
         <SelectGroup>
-          <SelectItem value="__ALL__">
+          <SelectItem value={noTemplateOption ? "__NONE__" : "__ALL__"}>
             <span className="font-semibold whitespace-nowrap">
-              {t("query.allTemplates")}
+              {defaultLabel}
             </span>
           </SelectItem>
           {templates.map((tpl) => (

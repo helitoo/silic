@@ -98,7 +98,7 @@ export function RecordSelect({
         aria-label={t("query.selectRecord")}
       >
         <SelectValue placeholder={placeholder}>
-          <span className="font-mono whitespace-nowrap">{displayLabel}</span>
+          <span className="whitespace-nowrap">{displayLabel}</span>
         </SelectValue>
       </SelectTrigger>
       <SelectContent align="start" className="w-auto min-w-max">

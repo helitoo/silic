@@ -55,13 +55,13 @@
     "newConnection": "New Relationship",
     "from": "From Entities",
     "to": "To Entities",
-    "directional": "Directional",
+    "directional": "Direction",
     "template": "Template",
     "records": "Records",
     "noConnections": "No relationships found.",
     "createFirstConnection": "Create your first relationship",
-    "isDirectional": "Directed",
-    "isNonDirectional": "Undirected"
+    "isDirectional": "1-way",
+    "isNonDirectional": "2-way"
   },
   "entityDialog": {
     "createTitle": "Create Entity",
@@ -69,7 +69,9 @@
     "description": "Configure entity attributes and relationships.",
     "id": "ID",
     "template": "Applied Template",
+    "noTemplate": "No template",
     "applyTemplate": "Apply",
+    "noTemplateApplied": "Template unlinked",
     "records": "Records",
     "addRecord": "Add Record",
     "deleteRecord": "Delete Record",
@@ -86,9 +88,14 @@
     "targetEntity": "Target Entity",
     "connectionName": "Relationship Name",
     "connectionNamePlaceholder": "e.g. worksAt, friend...",
-    "directional": "Directional",
+    "directional": "1-way",
+    "outbound": "Outbound",
+    "inbound": "Inbound",
+    "undirected": "2-way",
+    "toggleDirection": "Toggle direction: Outbound (←) / Inbound (→) / 2-way (↔)",
     "reset": "Reset",
     "delete": "Delete",
+    "duplicate": "Duplicate",
     "save": "Save",
     "create": "Create",
     "editMode": "Edit",
@@ -96,6 +103,7 @@
     "createdSuccess": "Entity created successfully.",
     "updatedSuccess": "Entity updated successfully.",
     "deletedSuccess": "Entity deleted successfully.",
+    "duplicatedSuccess": "Entity duplicated successfully.",
     "confirmDeleteTitle": "Delete Entity",
     "confirmDeleteDesc": "Are you sure you want to delete this entity? This action cannot be undone."
   },
@@ -108,14 +116,17 @@
     "to": "Target Entities (To)",
     "addFrom": "Add Source Entity",
     "addTo": "Add Target Entity",
-    "directional": "Directional Connection",
+    "directional": "1-way",
     "template": "Applied Template",
+    "noTemplate": "No template",
     "applyTemplate": "Apply",
+    "noTemplateApplied": "Template unlinked",
     "records": "Records",
     "addRecord": "Add Record",
     "deleteRecord": "Delete Record",
     "reset": "Reset",
     "delete": "Delete",
+    "duplicate": "Duplicate",
     "save": "Save",
     "create": "Create",
     "editMode": "Edit",
@@ -123,6 +134,7 @@
     "createdSuccess": "Relationship created successfully.",
     "updatedSuccess": "Relationship updated successfully.",
     "deletedSuccess": "Relationship deleted successfully.",
+    "duplicatedSuccess": "Relationship duplicated successfully.",
     "confirmDeleteTitle": "Delete Relationship",
     "confirmDeleteDesc": "Are you sure you want to delete this relationship? This action cannot be undone."
   },
@@ -155,6 +167,7 @@
     "dragToReorder": "Drag to reorder",
     "reset": "Reset",
     "delete": "Delete",
+    "duplicate": "Duplicate",
     "save": "Save",
     "create": "Create",
     "editMode": "Edit",
@@ -162,9 +175,19 @@
     "createdSuccess": "Template created successfully.",
     "updatedSuccess": "Template updated successfully.",
     "deletedSuccess": "Template deleted successfully.",
+    "duplicatedSuccess": "Template duplicated successfully.",
     "confirmDeleteTitle": "Delete Template",
-    "confirmDeleteDesc": "Are you sure you want to delete this template? This action cannot be undone."
+    "confirmDeleteDesc": "Are you sure you want to delete this template? This action cannot be undone.",
+    "confirmDeleteLinkedDesc": "Currently {{count}} entities belong to this template. Deleting this template will detach it from these entities while keeping all their existing data.",
+    "confirmUpdateImpactTitle": "Confirm Template Updates",
+    "confirmUpdateImpactDesc": "This template is linked to {{count}} entities. The following modifications will be applied:",
+    "impactDeletedRecords": "Remove {{count}} attributes from template:",
+    "impactDeleteFromEntitiesOption": "Also delete these attributes from all {{count}} linked entities (if unchecked, entities will keep them as custom attributes)",
+    "impactTypeChanges": "Data type modifications (values will be automatically cast or dropped if incompatible):",
+    "impactOrderChanges": "Synchronize attribute order across all {{count}} entities.",
+    "applyAndSync": "Update & Synchronize"
   },
+
   "types": {
     "shortText": "Text",
     "longText": "Essay",
@@ -181,6 +204,7 @@
     "color": "Color"
   },
   "common": {
+    "ok": "OK",
     "cancel": "Cancel",
     "confirmDiscardTitle": "Discard unsaved changes?",
     "confirmDiscardDesc": "You have unsaved changes. Are you sure you want to close and discard them?",
@@ -229,8 +253,10 @@
   "entityDetailPage": {
     "back": "Back",
     "edit": "Edit",
+    "duplicate": "Duplicate",
     "delete": "Delete",
     "deletedSuccess": "Entity deleted successfully.",
+    "duplicatedSuccess": "Entity duplicated successfully.",
     "details": "Entity Details",
     "longTextRecords": "Detailed Content",
     "otherRecords": "Attributes & Metadata",
@@ -354,7 +380,7 @@
     "entitiesTitle": "13+ Flexible Data Types",
     "entitiesDesc": "Store rich texts, essays, numbers, dates, times, media images, audio, video, files, and color attributes effortlessly.",
     "connectionsTitle": "Multi-Entity Hyper-Connections",
-    "connectionsDesc": "Connect multiple origin nodes to multiple targets with directional or undirected metadata-rich relationships.",
+    "connectionsDesc": "Connect multiple origin nodes to multiple targets with 1-way or 2-way metadata-rich relationships.",
     "queryTitle": "Visual Query & Pathfinding",
     "queryDesc": "Discover shortest relational paths between entities and build nested logical query expressions with mathematical aggregations.",
     "localFirstTitle": "100% Local-First & Private",
@@ -365,7 +391,7 @@
     "step1Title": "1. Model Entities & Schemas",
     "step1Desc": "Create customizable templates or individual entities with any combination of data records.",
     "step2Title": "2. Weave Connections",
-    "step2Desc": "Link entities with directed or undirected semantic relationships and custom attributes.",
+    "step2Desc": "Link entities with 1-way or 2-way semantic relationships and custom attributes.",
     "step3Title": "3. Explore & Query",
     "step3Desc": "Navigate the living force graph, search shortest paths, and uncover deep relational insights.",
     "ctaTitle": "Ready to organize your thoughts in graph dimensions?",
@@ -448,7 +474,7 @@
     "step3Desc": "Connect entities through the relationships tab.",
     "step3Body_prefix": "Connect entities together via the ",
     "relationships": "relationships",
-    "step3Body_suffix": " tab (supports directed or undirected connections) to build a linked network.",
+    "step3Body_suffix": " tab (supports 1-way or 2-way connections) to build a linked network.",
     "dataTypesTitle": "12+ DATA TYPES",
     "types": {
       "shortText": {
@@ -520,5 +546,10 @@
     "shareFileTitle": "Download & share anytime",
     "shareFileDesc1_prefix": "Export and share projects anytime in the ",
     "shareFileDesc2": "Easily export your entire project (including images, videos, audio) into a single archive file to back up, share, or open on another device."
+  },
+  "projectStorage": {
+    "quotaExceededTitle": "Storage Quota Exceeded",
+    "quotaExceededDesc": "Browser storage (IndexedDB) does not have enough space to save this file. You can export your project to a .silic file or remove unused assets.",
+    "orphansCleaned": "Automatically cleaned up {{count}} unreferenced files to free storage."
   }
 }

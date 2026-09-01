@@ -1,6 +1,7 @@
 import DOMPurify from "dompurify"
 import { AlignLeft, FileText, Video as VideoIcon, Headphones as AudioIcon } from "lucide-react"
 import type { Entity } from "@/lib/types"
+import { hasRecordValue } from "@/lib/utils"
 import { useLang } from "@/contexts/LangContext"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { MediaVideo } from "@/components/ui/media-video"
@@ -13,10 +14,13 @@ export interface LongTextSectionsProps {
 export function LongTextSections({ entity }: LongTextSectionsProps) {
   const { t } = useLang()
 
-  // Filter records with type === "longText" | "video" | "audio", preserving original order
+  // Filter records with type === "longText" | "video" | "audio" that have non-empty value
   const mediaRecords = (entity.records || []).filter(
-    (r) => r.type === "longText" || r.type === "video" || r.type === "audio"
+    (r) =>
+      (r.type === "longText" || r.type === "video" || r.type === "audio") &&
+      hasRecordValue(r)
   )
+
 
   if (mediaRecords.length === 0) {
     return (
@@ -39,15 +43,20 @@ export function LongTextSections({ entity }: LongTextSectionsProps) {
         const isArray = Boolean(rec.isArray)
         const values: string[] = isArray
           ? Array.isArray(rec.value)
-            ? rec.value.map((v) => String(v ?? ""))
-            : rec.value !== undefined && rec.value !== null
-              ? [String(rec.value)]
+            ? rec.value
+                .map((v) => String(v ?? "").trim())
+                .filter(Boolean)
+            : rec.value !== undefined &&
+                rec.value !== null &&
+                String(rec.value).trim() !== ""
+              ? [String(rec.value).trim()]
               : []
           : rec.value !== undefined &&
               rec.value !== null &&
               String(rec.value).trim() !== ""
             ? [String(rec.value)]
             : []
+
 
         const IconComponent =
           rec.type === "video"

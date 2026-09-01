@@ -1,5 +1,9 @@
 import * as React from "react"
 import { CirclePlus, GripVertical, Trash2, X } from "lucide-react"
+import { DragDropProvider } from "@dnd-kit/react"
+import { useSortable } from "@dnd-kit/react/sortable"
+import { move as dndMove } from "@dnd-kit/helpers"
+
 import type { Type } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import {
@@ -46,7 +50,84 @@ export interface RecordItemEditorProps {
   onRemoveArrayItem: (recordIndex: number, itemIndex: number) => void
 }
 
-export function RecordItemEditor({
+interface ArrayItemRowProps {
+  id: string
+  index: number
+  type: Type
+  value: string
+  placeholder: string
+  onUpdate: (value: string) => void
+  onRemove: () => void
+  dragTitle: string
+  removeTitle: string
+}
+
+const ArrayItemRow = React.memo(function ArrayItemRow({
+  id,
+  index,
+  type,
+  value,
+  placeholder,
+  onUpdate,
+  onRemove,
+  dragTitle,
+  removeTitle,
+}: ArrayItemRowProps) {
+  const { ref, handleRef, isDragging, isDropTarget } = useSortable({
+    id,
+    index,
+  })
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "group/item flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 p-1 shadow-2xs transition-colors",
+        isDragging && "border-dashed border-primary/60 bg-muted/40 opacity-40",
+        isDropTarget && !isDragging && "border-primary ring-2 ring-primary/25"
+      )}
+    >
+      {/* Drag Handle Button - Only dragging here initiates drag */}
+      <Button
+        ref={handleRef}
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        className="size-6 shrink-0 cursor-grab text-muted-foreground/60 hover:bg-muted hover:text-foreground active:cursor-grabbing"
+        title={dragTitle}
+        aria-label={dragTitle}
+      >
+        <GripVertical className="size-3.5" />
+      </Button>
+
+      {/* Value Input */}
+      <div className="min-w-0 flex-1">
+        <RecordValueInput
+          type={type}
+          value={value}
+          onChange={onUpdate}
+          placeholder={placeholder}
+          isSmall
+          inList
+        />
+      </div>
+
+      {/* Remove Button */}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        className="size-6 shrink-0 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+        onClick={onRemove}
+        title={removeTitle}
+      >
+        <X className="size-3" />
+      </Button>
+    </div>
+  )
+})
+
+export const RecordItemEditor = React.memo(function RecordItemEditor({
   record,
   index,
   typeOptions,
@@ -62,64 +143,43 @@ export function RecordItemEditor({
     [typeOptions, t]
   )
 
-  const [draggedIdx, setDraggedIdx] = React.useState<number | null>(null)
-  const [dragOverIdx, setDragOverIdx] = React.useState<number | null>(null)
+  const [localName, setLocalName] = React.useState(record.name ?? "")
+
+  React.useEffect(() => {
+    setLocalName(record.name ?? "")
+  }, [record.name])
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.value
+    setLocalName(next)
+    onUpdate(index, { name: next })
+  }
 
   const isArrayRecord = Boolean(record.isArray)
-  const arrayValues: string[] = isArrayRecord
-    ? Array.isArray(record.value)
+  const arrayValues: string[] = React.useMemo(() => {
+    if (!isArrayRecord) return []
+    return Array.isArray(record.value)
       ? record.value
       : [String(record.value ?? "")]
-    : []
+  }, [isArrayRecord, record.value])
 
-  const handleDragStart = (e: React.DragEvent, itemIdx: number) => {
-    setDraggedIdx(itemIdx)
-    e.dataTransfer.effectAllowed = "move"
-    e.dataTransfer.setData("text/plain", String(itemIdx))
-  }
+  const [itemIds, setItemIds] = React.useState<string[]>([])
 
-  const handleDragOver = (e: React.DragEvent, itemIdx: number) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = "move"
-    if (dragOverIdx !== itemIdx) {
-      setDragOverIdx(itemIdx)
-    }
-  }
-
-  const handleDragLeave = () => {
-    setDragOverIdx(null)
-  }
-
-  const handleDrop = (e: React.DragEvent, targetIdx: number) => {
-    e.preventDefault()
-    if (draggedIdx === null || draggedIdx === targetIdx) {
-      setDraggedIdx(null)
-      setDragOverIdx(null)
-      return
-    }
-
-    const nextArr = [...arrayValues]
-    const [moved] = nextArr.splice(draggedIdx, 1)
-    nextArr.splice(targetIdx, 0, moved)
-
-    onUpdate(index, { value: nextArr })
-    setDraggedIdx(null)
-    setDragOverIdx(null)
-  }
-
-  const handleDragEnd = () => {
-    setDraggedIdx(null)
-    setDragOverIdx(null)
-  }
+  React.useEffect(() => {
+    setItemIds((prev) => {
+      if (prev.length === arrayValues.length) return prev
+      return arrayValues.map((_, i) => prev[i] || crypto.randomUUID())
+    })
+  }, [arrayValues.length])
 
   return (
-    <div className="group flex flex-col gap-2 rounded-lg border border-border/70 bg-card/60 p-2.5 shadow-2xs transition-all hover:border-border">
+    <div className="group flex flex-col gap-2 rounded-lg border border-border/70 bg-card/60 p-2.5 shadow-2xs transition-colors hover:border-border">
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
         {/* Record Name: Full width on mobile (< sm), flex-1 on desktop (>= sm) */}
         <div className="w-full min-w-0 sm:flex-1">
           <Input
-            value={record.name}
-            onChange={(e) => onUpdate(index, { name: e.target.value })}
+            value={localName}
+            onChange={handleNameChange}
             placeholder={t("entityDialog.fieldNamePlaceholder")}
             className="h-8 w-full text-xs font-medium"
             required
@@ -195,58 +255,48 @@ export function RecordItemEditor({
             <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
               {t("entityDialog.array")} ({arrayValues.length})
             </span>
-            <div className="flex flex-col gap-1.5">
-              {arrayValues.map((itemVal, itemIdx) => (
-                <div
-                  key={itemIdx}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, itemIdx)}
-                  onDragOver={(e) => handleDragOver(e, itemIdx)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, itemIdx)}
-                  onDragEnd={handleDragEnd}
-                  className={cn(
-                    "group/item flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 p-1 shadow-2xs transition-all",
-                    draggedIdx === itemIdx &&
-                      "opacity-40 border-dashed border-primary",
-                    dragOverIdx === itemIdx &&
-                      draggedIdx !== itemIdx &&
-                      "border-primary ring-2 ring-primary/25"
-                  )}
-                >
-                  <div
-                    className="flex size-6 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground active:cursor-grabbing"
-                    title="Drag to reorder"
-                  >
-                    <GripVertical className="size-3.5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <RecordValueInput
+
+            <DragDropProvider
+              onDragEnd={(event) => {
+                if (event.canceled) return
+
+                const itemsWithIds = arrayValues.map((val, i) => ({
+                  id: itemIds[i] || `item-${i}`,
+                  value: val,
+                }))
+
+                const reordered = dndMove(itemsWithIds, event)
+                if (reordered !== itemsWithIds) {
+                  setItemIds(reordered.map((it) => it.id))
+                  onUpdate(index, { value: reordered.map((it) => it.value) })
+                }
+              }}
+            >
+              <div className="flex flex-col gap-1.5">
+                {arrayValues.map((itemVal, itemIdx) => {
+                  const itemId = itemIds[itemIdx] || `item-${itemIdx}`
+                  return (
+                    <ArrayItemRow
+                      key={itemId}
+                      id={itemId}
+                      index={itemIdx}
                       type={record.type}
                       value={itemVal}
-                      onChange={(newVal) =>
-                        onUpdateArrayItem(index, itemIdx, newVal)
-                      }
                       placeholder={`${t(
                         "entityDialog.fieldValuePlaceholder"
                       )} #${itemIdx + 1}`}
-                      isSmall
-                      inList
+                      onUpdate={(newVal) =>
+                        onUpdateArrayItem(index, itemIdx, newVal)
+                      }
+                      onRemove={() => onRemoveArrayItem(index, itemIdx)}
+                      dragTitle={t("templateDialog.dragToReorder")}
+                      removeTitle={t("common.removeFile") || "Remove item"}
                     />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    className="size-6 shrink-0 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => onRemoveArrayItem(index, itemIdx)}
-                    title={t("common.removeFile") || "Remove item"}
-                  >
-                    <X className="size-3" />
-                  </Button>
-                </div>
-              ))}
-            </div>
+                  )
+                })}
+              </div>
+            </DragDropProvider>
+
             <div className="flex justify-start pt-0.5">
               <Button
                 type="button"
@@ -271,6 +321,7 @@ export function RecordItemEditor({
       </div>
     </div>
   )
-}
+})
 
 export default RecordItemEditor
+
