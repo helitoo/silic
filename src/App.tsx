@@ -1,20 +1,35 @@
-import { Button } from "@/components/ui/button"
+import { TemplateProvider } from "@/contexts/TemplateContext"
+import { ConnectionProvider } from "@/contexts/ConnectionContext"
+import { EntityProvider } from "@/contexts/EntityContext"
+import { QueryProvider } from "@/contexts/QueryContext"
+import { LangProvider } from "@/contexts/LangContext"
+import { RouterProvider } from "@/contexts/RouterContext"
+import { GoogleDrivePickerProvider } from "@/contexts/GoogleDrivePickerContext"
+import { ProjectStorageProvider } from "@/contexts/ProjectStorageContext"
+import { LongTextEditorProvider } from "@/components/ui/longTextEditor"
+import AppContent from "@/components/main/AppContent"
 
 export function App() {
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
-        </div>
-        <div className="font-mono text-xs text-muted-foreground">
-          (Press <kbd>d</kbd> to toggle dark mode)
-        </div>
-      </div>
-    </div>
+    <LangProvider>
+      <RouterProvider>
+        <GoogleDrivePickerProvider>
+          <TemplateProvider>
+            <ConnectionProvider>
+              <EntityProvider>
+                <ProjectStorageProvider>
+                  <QueryProvider>
+                    <LongTextEditorProvider>
+                      <AppContent />
+                    </LongTextEditorProvider>
+                  </QueryProvider>
+                </ProjectStorageProvider>
+              </EntityProvider>
+            </ConnectionProvider>
+          </TemplateProvider>
+        </GoogleDrivePickerProvider>
+      </RouterProvider>
+    </LangProvider>
   )
 }
 
