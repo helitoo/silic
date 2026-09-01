@@ -74,11 +74,13 @@ export function getNavItems(
         {
           icon: UsersRound,
           label: t("navbar.searchEntity") || "Entity",
+          kdb: "⌘ Q",
           onClick: actions?.onOpenEntityQuery,
         },
         {
           icon: Route,
           label: t("navbar.searchPath") || "Path",
+          kdb: "⌘ ⇧ Q",
           onClick: actions?.onOpenPathQuery,
         },
       ],

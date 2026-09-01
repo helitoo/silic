@@ -9,3 +9,6 @@ export * from "./expression/ExpressionEvaluator"
 export * from "./executor/EntityQueryExecutor"
 export * from "./executor/PathQueryExecutor"
 export * from "./executor/QueryExecutionRouter"
+export * from "./parser/SilicLexer"
+export * from "./parser/SilicParser"
+

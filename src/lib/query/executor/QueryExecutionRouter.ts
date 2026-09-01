@@ -1,6 +1,7 @@
 import type {
   Connection,
   Entity,
+  Template,
   EntityQuery,
   EntityRepository,
   PathQuery,
@@ -17,11 +18,12 @@ export class QueryExecutionRouter {
     query: EntityQuery,
     entitiesOrRepo: Entity[] | EntityRepository,
     connections: Connection[] = [],
-    cache?: QueryCache
+    cache?: QueryCache,
+    templates: Template[] = []
   ): Entity[] {
     const repository =
       Array.isArray(entitiesOrRepo)
-        ? new InMemoryEntityRepository(entitiesOrRepo, connections)
+        ? new InMemoryEntityRepository(entitiesOrRepo, connections, templates)
         : entitiesOrRepo
     const traversal = new GraphTraversalEngine(repository)
 
@@ -31,11 +33,12 @@ export class QueryExecutionRouter {
   public static executePathQuery(
     query: PathQuery,
     entitiesOrRepo: Entity[] | EntityRepository,
-    connections: Connection[] = []
+    connections: Connection[] = [],
+    templates: Template[] = []
   ): PathQueryResult {
     const repository =
       Array.isArray(entitiesOrRepo)
-        ? new InMemoryEntityRepository(entitiesOrRepo, connections)
+        ? new InMemoryEntityRepository(entitiesOrRepo, connections, templates)
         : entitiesOrRepo
     const traversal = new GraphTraversalEngine(repository)
 

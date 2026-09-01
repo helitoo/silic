@@ -359,7 +359,15 @@
     "executedPathQuery": "Executed path search",
     "foundEntitiesCount": "Found {{count}} entities.",
     "pathFound": "Found path with {{count}} relationships.",
-    "pathNotFound": "No path found."
+    "pathNotFound": "No path found.",
+    "noQuerySpecified": "No query specified",
+    "noQuerySpecifiedDesc": "Please write a SILIC query command before executing.",
+    "syntaxError": "SILIC Syntax Error",
+    "couldNotParseQuery": "Could not parse query.",
+    "queryReset": "Query reset",
+    "filterCleared": "Entity filter cleared.",
+    "missingEntitySelection": "Missing entity selection",
+    "missingEntitySelectionDesc": "Please select both starting and destination entities."
   },
   "landing": {
     "badge": "v0.1.0",

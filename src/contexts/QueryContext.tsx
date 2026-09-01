@@ -4,6 +4,7 @@ import type { EntityQuery, PathQuery } from "@/lib/query-types"
 import { QueryExecutionRouter, type PathQueryResult } from "@/lib/query"
 import { useEntity } from "./EntityContext"
 import { useConnection } from "./ConnectionContext"
+import { useTemplate } from "./TemplateContext"
 
 export interface QueryContextType {
   // Entity query state & execution
@@ -40,6 +41,7 @@ export const QueryContext = React.createContext<QueryContextType | null>(null)
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const { entities } = useEntity()
   const { connections } = useConnection()
+  const { templates } = useTemplate()
 
   const [entityQuery, setEntityQuery] = React.useState<EntityQuery | undefined>(
     undefined
@@ -68,19 +70,15 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       return filteredEntities
     }
     return entities
-  }, [isEntityFiltered, filteredEntities, entities])
+  }, [entities, isEntityFiltered, filteredEntities])
 
-  // When path query found path, currentConnections returns path connections; otherwise original connections
+  // When path filtered, currentConnections returns the found path connections; otherwise all connections
   const currentConnections = React.useMemo(() => {
-    if (
-      isPathFiltered &&
-      currentPath.found &&
-      currentPath.connections.length > 0
-    ) {
+    if (isPathFiltered && currentPath.found) {
       return currentPath.connections
     }
     return connections
-  }, [isPathFiltered, currentPath, connections])
+  }, [connections, isPathFiltered, currentPath])
 
   const executeEntityQuery = React.useCallback(
     (queryToRun?: EntityQuery): Entity[] => {
@@ -94,13 +92,15 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       const results = QueryExecutionRouter.executeEntityQuery(
         targetQuery,
         entities,
-        connections
+        connections,
+        undefined,
+        templates
       )
       setFilteredEntities(results)
       setIsEntityFiltered(true)
       return results
     },
-    [entityQuery, entities, connections]
+    [entityQuery, entities, connections, templates]
   )
 
   const resetEntities = React.useCallback(() => {
@@ -126,13 +126,14 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       const result = QueryExecutionRouter.executePathQuery(
         targetQuery,
         entities,
-        connections
+        connections,
+        templates
       )
       setCurrentPath(result)
       setIsPathFiltered(result.found)
       return result
     },
-    [pathQuery, entities, connections]
+    [pathQuery, entities, connections, templates]
   )
 
   const resetPath = React.useCallback(() => {

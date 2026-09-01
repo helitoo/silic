@@ -17,6 +17,11 @@ export class PathQueryExecutor {
       }
     }
 
-    return traversal.shortestPath(query.from, query.to, query.via)
+    return traversal.shortestPath(
+      query.from,
+      query.to,
+      query.via,
+      query.where
+    )
   }
 }

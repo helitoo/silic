@@ -124,12 +124,20 @@ export default function Navbar() {
         e.preventDefault()
         e.stopPropagation()
         setIsNewAlertOpen(true)
+      } else if (isMod && (e.key.toLowerCase() === "q" || e.code === "KeyQ")) {
+        e.preventDefault()
+        e.stopPropagation()
+        if (e.shiftKey) {
+          openPathQuery()
+        } else {
+          openEntityQuery()
+        }
       }
     }
     window.addEventListener("keydown", handleKeyDown, { capture: true })
     return () =>
       window.removeEventListener("keydown", handleKeyDown, { capture: true })
-  }, [handleUploadSilic, handleDownloadSilic])
+  }, [handleUploadSilic, handleDownloadSilic, openEntityQuery, openPathQuery])
 
   // Nav item actions
   const actions: NavItemActions = React.useMemo(

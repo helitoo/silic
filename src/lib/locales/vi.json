@@ -359,7 +359,15 @@
     "executedPathQuery": "Đã tìm kiếm đường đi",
     "foundEntitiesCount": "Tìm thấy {{count}} thực thể.",
     "pathFound": "Tìm thấy đường đi với {{count}} quan hệ.",
-    "pathNotFound": "Không tìm thấy đường đi."
+    "pathNotFound": "Không tìm thấy đường đi.",
+    "noQuerySpecified": "Chưa nhập câu truy vấn",
+    "noQuerySpecifiedDesc": "Vui lòng nhập câu truy vấn SILIC trước khi thực hiện.",
+    "syntaxError": "Lỗi cú pháp SILIC",
+    "couldNotParseQuery": "Không thể phân tích cú pháp câu truy vấn.",
+    "queryReset": "Đã đặt lại truy vấn",
+    "filterCleared": "Đã hủy bộ lọc tìm kiếm thực thể.",
+    "missingEntitySelection": "Chưa chọn đủ thực thể",
+    "missingEntitySelectionDesc": "Vui lòng chọn cả thực thể bắt đầu và thực thể đích."
   },
   "landing": {
     "badge": "v0.1.0",

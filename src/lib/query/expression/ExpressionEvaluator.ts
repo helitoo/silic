@@ -72,6 +72,29 @@ export class ExpressionEvaluator {
     return { subjects: newSubjects, operators: newOperators }
   }
 
+  private static evaluateMultiSubjects(
+    subjects: (Expression | PrimaryOperand)[],
+    operators: Operator[],
+    context: QueryContext
+  ): unknown {
+    if (subjects.length === 0) return undefined
+    if (subjects.length === 1) {
+      return this.evaluate(subjects[0], context)
+    }
+
+    const { subjects: groupedSubjects, operators: groupedOperators } =
+      this.groupMultiplicativeOperations(subjects, operators)
+
+    let acc = this.evaluate(groupedSubjects[0], context)
+    for (let i = 0; i < groupedSubjects.length - 1; i++) {
+      const op = groupedOperators[i] || "AND"
+      const nextVal = this.evaluate(groupedSubjects[i + 1], context)
+      acc = OperatorEngine.applyBinary(op, acc, nextVal)
+    }
+
+    return acc
+  }
+
   public static evaluate(
     expr: Expression | PrimaryOperand | unknown,
     context: QueryContext
@@ -125,10 +148,6 @@ export class ExpressionEvaluator {
 
         const rawSubjects = expression.subjects || []
         const rawOperators = expression.operators || []
-        const { subjects, operators } = this.groupMultiplicativeOperations(
-          rawSubjects,
-          rawOperators
-        )
 
         const matchingEntities: Entity[] = []
 
@@ -142,19 +161,27 @@ export class ExpressionEvaluator {
             currentConnection: pair.connection,
           }
 
-          let isMatch = false
-          if (subjects.length === 0) {
-            isMatch = true
-          } else if (subjects.length === 1) {
-            isMatch = Boolean(this.evaluate(subjects[0], evalContext))
-          } else {
-            let acc = this.evaluate(subjects[0], evalContext)
-            for (let i = 0; i < subjects.length - 1; i++) {
-              const op = operators[i] || "AND"
-              const nextVal = this.evaluate(subjects[i + 1], evalContext)
-              acc = OperatorEngine.applyBinary(op, acc, nextVal)
+          // 1. Check connection condition if present
+          if (expression.connection && expression.connection.length > 0) {
+            let connMatch = true
+            for (const connExpr of expression.connection) {
+              const res = this.evaluate(connExpr, evalContext)
+              if (!res) {
+                connMatch = false
+                break
+              }
             }
-            isMatch = Boolean(acc)
+            if (!connMatch) continue
+          }
+
+          // 2. Check target entity condition
+          let isMatch = false
+          if (rawSubjects.length === 0) {
+            isMatch = true
+          } else {
+            isMatch = Boolean(
+              this.evaluateMultiSubjects(rawSubjects, rawOperators, evalContext)
+            )
           }
 
           if (isMatch) {
@@ -166,26 +193,11 @@ export class ExpressionEvaluator {
       }
 
       if (expression.type === "MULTI") {
-        const rawSubjects = expression.subjects || []
-        if (rawSubjects.length === 0) return undefined
-        if (rawSubjects.length === 1) {
-          return this.evaluate(rawSubjects[0], context)
-        }
-
-        const rawOperators = expression.operators || []
-        const { subjects, operators } = this.groupMultiplicativeOperations(
-          rawSubjects,
-          rawOperators
+        return this.evaluateMultiSubjects(
+          expression.subjects || [],
+          expression.operators || [],
+          context
         )
-
-        let acc = this.evaluate(subjects[0], context)
-        for (let i = 0; i < subjects.length - 1; i++) {
-          const op = operators[i] || "AND"
-          const nextVal = this.evaluate(subjects[i + 1], context)
-          acc = OperatorEngine.applyBinary(op, acc, nextVal)
-        }
-
-        return acc
       }
     }
 

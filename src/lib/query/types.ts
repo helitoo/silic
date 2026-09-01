@@ -8,8 +8,14 @@ import type {
 import type {
   EntityQuery,
   PathQuery,
+  PathExpression,
+  PathConstraintQuantifier,
+  PathItemType,
+  RecordSelector,
   EntitySelector,
   ConnectionSelector,
+  TemplateSelector,
+  DateFunction,
   Expression,
   PrimaryOperand,
   AggreeateFunction,
@@ -24,8 +30,14 @@ export type {
   Type,
   EntityQuery,
   PathQuery,
+  PathExpression,
+  PathConstraintQuantifier,
+  PathItemType,
+  RecordSelector,
   EntitySelector,
   ConnectionSelector,
+  TemplateSelector,
+  DateFunction,
   Expression,
   PrimaryOperand,
   AggreeateFunction,
@@ -51,6 +63,10 @@ export interface EntityRepository {
   getByTemplate?(templateId: string): Entity[]
   getConnections(): Connection[]
   getConnectionById?(id: string): Connection | undefined
+  getTemplates?(): Template[]
+  getTemplateById?(id: string): Template | undefined
+  getTemplateByName?(name: string): Template | undefined
+  getTemplateName?(id?: string): string | undefined
 }
 
 export interface QueryCache {
@@ -95,6 +111,7 @@ export interface GraphTraversalEngineInterface {
   shortestPath(
     from: string,
     to: string,
-    allowedConnections?: ConnectionSelector[]
+    allowedConnections?: ConnectionSelector[],
+    where?: PathExpression
   ): PathQueryResult
 }

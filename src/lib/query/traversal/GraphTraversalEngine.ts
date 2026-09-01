@@ -4,8 +4,10 @@ import type {
   Entity,
   EntityRepository,
   GraphTraversalEngineInterface,
+  PathExpression,
   PathQueryResult,
 } from "../types"
+import { PathExpressionEvaluator } from "../expression/PathExpressionEvaluator"
 
 function matchesConnectionSelector(
   conn: Connection,
@@ -281,8 +283,13 @@ export class GraphTraversalEngine implements GraphTraversalEngineInterface {
   public shortestPath(
     from: string,
     to: string,
-    allowedConnections?: ConnectionSelector[]
+    allowedConnections?: ConnectionSelector[],
+    where?: PathExpression
   ): PathQueryResult {
+    if (where) {
+      return this.constrainedShortestPath(from, to, allowedConnections, where)
+    }
+
     if (from === to) {
       const startEntity = this.repository.getById(from)
       return {
@@ -350,6 +357,99 @@ export class GraphTraversalEngine implements GraphTraversalEngineInterface {
       found: true,
       entities,
       connections: connectionPath,
+    }
+  }
+
+  /**
+   * Constrained Breadth-First Search evaluating PathExpression along path branches.
+   */
+  private constrainedShortestPath(
+    from: string,
+    to: string,
+    allowedConnections?: ConnectionSelector[],
+    where?: PathExpression
+  ): PathQueryResult {
+    const startEntity = this.repository.getById(from)
+    if (!startEntity) {
+      return { found: false, entities: [], connections: [] }
+    }
+
+    if (from === to) {
+      const candidate = { entities: [startEntity], connections: [] }
+      if (
+        !where ||
+        PathExpressionEvaluator.evaluate(
+          where,
+          candidate,
+          this.repository,
+          this
+        )
+      ) {
+        return { found: true, entities: [startEntity], connections: [] }
+      }
+    }
+
+    // BFS Queue with full path branches
+    const queue: Array<{
+      currId: string
+      entityPath: string[]
+      connectionPath: Connection[]
+    }> = [{ currId: from, entityPath: [from], connectionPath: [] }]
+
+    const MAX_HOPS = 15
+
+    while (queue.length > 0) {
+      const state = queue.shift()!
+
+      if (state.currId === to && state.entityPath.length > 1) {
+        const entities: Entity[] = state.entityPath
+          .map((id) => this.repository.getById(id))
+          .filter((ent): ent is Entity => ent !== undefined)
+
+        const candidate = {
+          entities,
+          connections: state.connectionPath,
+        }
+
+        if (
+          !where ||
+          PathExpressionEvaluator.evaluate(
+            where,
+            candidate,
+            this.repository,
+            this
+          )
+        ) {
+          return {
+            found: true,
+            entities,
+            connections: state.connectionPath,
+          }
+        }
+      }
+
+      if (state.entityPath.length < MAX_HOPS) {
+        const neighbors = this.getOutboundNeighbors(
+          state.currId,
+          allowedConnections
+        )
+        for (const { to: nextId, connection: conn } of neighbors) {
+          // Avoid self-loops on current branch
+          if (!state.entityPath.includes(nextId)) {
+            queue.push({
+              currId: nextId,
+              entityPath: [...state.entityPath, nextId],
+              connectionPath: [...state.connectionPath, conn],
+            })
+          }
+        }
+      }
+    }
+
+    return {
+      found: false,
+      entities: [],
+      connections: [],
     }
   }
 }
