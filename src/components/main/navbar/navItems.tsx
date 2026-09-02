@@ -184,7 +184,7 @@ export function getNavItems(
           id: "help",
           icon: CircleQuestionMark,
           label: t("navbar.help"),
-          href: "https://www.facebook.com/bminh.tb",
+          href: "https://github.com/helitoo",
           target: "_blank",
         },
       ],

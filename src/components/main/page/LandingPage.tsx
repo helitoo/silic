@@ -120,7 +120,7 @@ export function LandingPage() {
           type: "url",
           name: "Mã nguồn",
           isArray: false,
-          value: "https://github.com/helitoo",
+          value: "https://github.com/helitoo/silic",
         },
         {
           id: "rec-date",

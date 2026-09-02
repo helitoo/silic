@@ -13,7 +13,7 @@ Silic does not transmit this data to its own servers, sell it, or share it with 
 
 You can view, modify, or permanently delete your locally stored data at any time.
 
-For more information, see our [Storage Architecture][https://silic.vercel.app/docs-storage] and [Query Architecture][https://silic.vercel.app/docs-query] documentation.
+For more information, see our [Storage Architecture][https://silic.kemlib.com/docs-storage] and [Query Architecture][https://silic.kemlib.com/docs-query] documentation.
 
 ## 2. On Third-Party Platforms
 

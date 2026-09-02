@@ -19,10 +19,42 @@
       property="og:description"
       content="A Multi-Attribute Knowledge Graph Note-Taking App. Silic supports multi-step queries, advanced queries, graph plotting, data analysis, can operate offline, and integrates with Google Drive."
     />
-    <meta property="og:image" content="https://silic.vercel.app/og-image.png" />
-    <meta property="og:url" content="https://silic.vercel.app/" />
+    <meta property="og:image" content="https://silic.kemlib.com/og-image.png" />
+    <meta property="og:url" content="https://silic.kemlib.com/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Silic" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org/",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "https://silic.kemlib.com/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "User Guide",
+            "item": "https://silic.kemlib.com/guide"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Query Engine & Language Architecture",
+            "item": "https://silic.kemlib.com/docs-query"
+          },
+          {
+            "@type": "ListItem",
+            "position": 4,
+            "name": "Data Storage Architecture & Mechanism (Storage System)",
+            "item": "https://silic.kemlib.com/docs-storage"
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

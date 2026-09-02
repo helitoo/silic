@@ -1,0 +1,23 @@
+# Silic
+
+> A Multi-Attribute Knowledge Graph Note-Taking App. Silic supports multi-step
+> queries, advanced queries, graph plotting, data analysis, can operate
+> offline, and integrates with Google Drive.
+
+## Site
+
+- Home: https://silic.kemlib.com/
+- User Guide: https://silic.kemlib.com/guide
+- Query Engine & Language Architecture: https://silic.kemlib.com/docs-query
+- Data Storage Architecture & Mechanism: https://silic.kemlib.com/docs-storage
+
+## Access
+
+- Public pages are open for crawling and indexing (see /robots.txt).
+- The app itself is a client-rendered SPA (root div + main.tsx bundle);
+  agents relying on static HTML parsing should prefer the docs pages above
+  over the app shell for extracting product information.
+
+## Contact
+
+- For questions about this site or its content, see the User Guide page.
