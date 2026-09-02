@@ -13,7 +13,6 @@ import {
   ShieldCheck,
   ShieldLock,
   Smartphone,
-  Sparkles,
 } from "lucide-react"
 import { useLang } from "@/contexts/LangContext"
 import { useRouter } from "@/contexts/RouterContext"
