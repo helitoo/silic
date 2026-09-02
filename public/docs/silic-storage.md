@@ -65,26 +65,26 @@ my-project.silic
 
 The central context managing current project state, automatic synchronization with IndexedDB, import/export coordination for `.silic` files, and attachment storage.
 
-| Property / Method | Type / Signature | Description |
-| :----------------------- | :---------------------------------------- | :----------------------------------------------------------------------------------------------------------- |
-| `fileName`               | `string`                                  | Current project name (displayed in title bar and used as export filename).                                  |
-| `setFileName`            | `(name: string) => void`                  | Updates the project name.                                                                                    |
-| `driveFileId`            | `string \| null`                          | Current Google Drive file ID associated with the workspace (null if local-only).                             |
-| `setDriveFileId`         | `(id: string \| null) => void`            | Updates the active Google Drive file ID.                                                                     |
-| `attachments`            | `AttachmentMeta[]`                        | List of metadata for all attachments in the project (`{ id, mimeType, size, caption }`).                    |
-| `addAttachment`          | `(file: File, customId?: string, caption?: string) => Promise<AttachmentMeta>` | Saves file to IndexedDB, generates attachment metadata with default caption set to file name (or ID fallback). |
-| `updateAttachmentCaption`| `(id: string, caption: string) => Promise<void>` | Updates the caption for an attachment in IndexedDB and React state.                                         |
-| `removeAttachment`       | `(id: string) => Promise<void>`           | Deletes an attachment by ID from IndexedDB and updates the metadata list.                                    |
-| `duplicateFile` / `duplicateAttachment` | `(oldId: string, customId?: string, caption?: string) => Promise<AttachmentMeta \| null>` | Clones an attachment's binary Blob in IndexedDB with a new UUID and registers duplicate metadata.            |
-| `cleanupOrphanedAttachments` | `() => Promise<number>`                   | Scans and purges any binary files in IndexedDB not referenced by any entity or connection.                    |
-| `exportProjectSilic`     | `(customName?: string) => Promise<void>`  | Packages all project state and attachments into a `.silic` file and downloads it.                            |
-| `generateSilicZipBuffer` | `(customName?: string) => Promise<{ buffer: ArrayBuffer; fileName: string }>` | Packages the workspace into a `.silic` ZIP buffer for downloads or Google Drive uploads.     |
-| `importProjectSilic`     | `(file: File, newDriveFileId?: string \| null) => Promise<void>` | Unpacks `.silic` file, reloads entities, connections, templates, and overwrites attachments in IndexedDB.    |
-| `newProject`             | `() => Promise<void>`                     | Creates a new project, clearing all data and resetting state to a blank canvas.                              |
-| `clearProject`           | `() => Promise<void>`                     | Wipes all data in IndexedDB (`app-state` & `attachments`), deletes form drafts, and resets state.            |
-| `showLoading`            | `(message?: string) => void`              | Displays an interaction-blocking loading modal during heavy I/O operations.                                  |
-| `hideLoading`            | `() => void`                              | Closes the loading modal.                                                                                    |
-| `isLoading`              | `boolean`                                 | Open/close state of the loading dialog.                                                                      |
+| Property / Method                       | Type / Signature                                                                          | Description                                                                                                    |
+| :-------------------------------------- | :---------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------- |
+| `fileName`                              | `string`                                                                                  | Current project name (displayed in title bar and used as export filename).                                     |
+| `setFileName`                           | `(name: string) => void`                                                                  | Updates the project name.                                                                                      |
+| `driveFileId`                           | `string \| null`                                                                          | Current Google Drive file ID associated with the workspace (null if local-only).                               |
+| `setDriveFileId`                        | `(id: string \| null) => void`                                                            | Updates the active Google Drive file ID.                                                                       |
+| `attachments`                           | `AttachmentMeta[]`                                                                        | List of metadata for all attachments in the project (`{ id, mimeType, size, caption }`).                       |
+| `addAttachment`                         | `(file: File, customId?: string, caption?: string) => Promise<AttachmentMeta>`            | Saves file to IndexedDB, generates attachment metadata with default caption set to file name (or ID fallback). |
+| `updateAttachmentCaption`               | `(id: string, caption: string) => Promise<void>`                                          | Updates the caption for an attachment in IndexedDB and React state.                                            |
+| `removeAttachment`                      | `(id: string) => Promise<void>`                                                           | Deletes an attachment by ID from IndexedDB and updates the metadata list.                                      |
+| `duplicateFile` / `duplicateAttachment` | `(oldId: string, customId?: string, caption?: string) => Promise<AttachmentMeta \| null>` | Clones an attachment's binary Blob in IndexedDB with a new UUID and registers duplicate metadata.              |
+| `cleanupOrphanedAttachments`            | `() => Promise<number>`                                                                   | Scans and purges any binary files in IndexedDB not referenced by any entity or connection.                     |
+| `exportProjectSilic`                    | `(customName?: string) => Promise<void>`                                                  | Packages all project state and attachments into a `.silic` file and downloads it.                              |
+| `generateSilicZipBuffer`                | `(customName?: string) => Promise<{ buffer: ArrayBuffer; fileName: string }>`             | Packages the workspace into a `.silic` ZIP buffer for downloads or Google Drive uploads.                       |
+| `importProjectSilic`                    | `(file: File, newDriveFileId?: string \| null) => Promise<void>`                          | Unpacks `.silic` file, reloads entities, connections, templates, and overwrites attachments in IndexedDB.      |
+| `newProject`                            | `() => Promise<void>`                                                                     | Creates a new project, clearing all data and resetting state to a blank canvas.                                |
+| `clearProject`                          | `() => Promise<void>`                                                                     | Wipes all data in IndexedDB (`app-state` & `attachments`), deletes form drafts, and resets state.              |
+| `showLoading`                           | `(message?: string) => void`                                                              | Displays an interaction-blocking loading modal during heavy I/O operations.                                    |
+| `hideLoading`                           | `() => void`                                                                              | Closes the loading modal.                                                                                      |
+| `isLoading`                             | `boolean`                                                                                 | Open/close state of the loading dialog.                                                                        |
 
 ---
 
@@ -130,13 +130,13 @@ Hook for seamlessly resolving between external URLs and local internal attachmen
 
 Central coordinator for Google Drive cloud synchronization, picker file browsing, OAuth token caching, and permissions management:
 
-| Property / Method | Type / Signature | Description |
-| :----------------------- | :---------------------------------------- | :----------------------------------------------------------------------------------------------------------- |
-| `handleOpenPicker`       | `(viewId?: ViewIdOptions, ...) => void`   | Launches the Google Drive Picker dialog, downloads the selected `.silic` file binary, and imports it.       |
-| `handleSaveToDrive`      | `(isSaveAs?: boolean) => Promise<void>`   | Serializes project state and performs a `PATCH` (update) or `POST` (create new) multipart upload to Drive.  |
-| `handleShareDrive`       | `() => Promise<void>`                     | Grants public view-only reader permission on Google Drive and copies the shareable URL to clipboard.        |
-| `driveFileId`            | `string \| null`                          | Current Google Drive file ID.                                                                                |
-| `isDriveLoading`         | `boolean`                                 | Loading state indicating ongoing Google Drive network requests.                                              |
+| Property / Method   | Type / Signature                        | Description                                                                                                |
+| :------------------ | :-------------------------------------- | :--------------------------------------------------------------------------------------------------------- |
+| `handleOpenPicker`  | `(viewId?: ViewIdOptions, ...) => void` | Launches the Google Drive Picker dialog, downloads the selected `.silic` file binary, and imports it.      |
+| `handleSaveToDrive` | `(isSaveAs?: boolean) => Promise<void>` | Serializes project state and performs a `PATCH` (update) or `POST` (create new) multipart upload to Drive. |
+| `handleShareDrive`  | `() => Promise<void>`                   | Grants public view-only reader permission on Google Drive and copies the shareable URL to clipboard.       |
+| `driveFileId`       | `string \| null`                        | Current Google Drive file ID.                                                                              |
+| `isDriveLoading`    | `boolean`                               | Loading state indicating ongoing Google Drive network requests.                                            |
 
 ---
 
@@ -343,17 +343,17 @@ React.useEffect(() => {
 
 Standard keyboard shortcuts (using `⌘` on macOS or `Ctrl` on Windows/Linux) are listened to globally in `Navbar.tsx`:
 
-| Shortcut | Action | Handler Function |
-| :------------------------- | :--------------------------------- | :-------------------------------------------------------- |
-| `⌘ N` / `Ctrl N`           | Create new project (Blank canvas) | `newProject()` |
-| `⌘ ⇧ O` / `Ctrl Shift O`   | Open project from Google Drive     | `handleOpenPicker()` |
-| `⌘ S` / `Ctrl S`           | Save project to Google Drive       | `handleSaveToDrive(false)` |
-| `⌘ ⇧ S` / `Ctrl Shift S`   | Save as new copy to Google Drive   | `handleSaveToDrive(true)` |
-| `⌘ U` / `Ctrl U`           | Upload `.silic` project from disk | `uploadSingleFile()` → `importProjectSilic()` |
-| `⌘ D` / `Ctrl D`           | Export and download `.silic` file | `exportProjectSilic()` |
-| `⌘ Q` / `Ctrl Q`           | Open Entity Query Sheet            | `openEntityQuery()` |
-| `⌘ ⇧ Q` / `Ctrl Shift Q`   | Open Path Query Sheet              | `openPathQuery()` |
-| `⌘ ⇧ K` / `Ctrl Shift K`   | Open Analysis Page                 | `openAnalysis()` |
+| Shortcut                 | Action                            | Handler Function                              |
+| :----------------------- | :-------------------------------- | :-------------------------------------------- |
+| `⌘ N` / `Ctrl N`         | Create new project (Blank canvas) | `newProject()`                                |
+| `⌘ ⇧ O` / `Ctrl Shift O` | Open project from Google Drive    | `handleOpenPicker()`                          |
+| `⌘ S` / `Ctrl S`         | Save project to Google Drive      | `handleSaveToDrive(false)`                    |
+| `⌘ ⇧ S` / `Ctrl Shift S` | Save as new copy to Google Drive  | `handleSaveToDrive(true)`                     |
+| `⌘ U` / `Ctrl U`         | Upload `.silic` project from disk | `uploadSingleFile()` → `importProjectSilic()` |
+| `⌘ D` / `Ctrl D`         | Export and download `.silic` file | `exportProjectSilic()`                        |
+| `⌘ Q` / `Ctrl Q`         | Open Entity Query Sheet           | `openEntityQuery()`                           |
+| `⌘ ⇧ Q` / `Ctrl Shift Q` | Open Path Query Sheet             | `openPathQuery()`                             |
+| `⌘ ⇧ K` / `Ctrl Shift K` | Open Analysis Page                | `openAnalysis()`                              |
 
 ---
 
@@ -387,16 +387,17 @@ For a seamless user experience (Seamless UX), Silic does not prompt disruptive "
 
 Silic adopts a **2-Tier Storage Strategy** optimized for **speed** and **performance**:
 
-| Metric | LocalStorage (For Form Drafts) | IndexedDB (For Project Data) |
-| :--- | :--- | :--- |
-| **Purpose** | Temporary Dialog drafts (`Entity`, `Connection`, `Template`) | Full Project data tree, App State & Binary Attachments (`Blob`) |
-| **Access Mechanism** | **Synchronous** — Instant access (0ms latency) | **Asynchronous** — Promise & Transaction based |
-| **UI Initialization** | **Zero-Flicker**: Read synchronously on component initialization (`initialState`) | Requires `useEffect` + `setState` post-mount, causing UI layout shifts |
-| **Performance & Speed** | Ultra-lightweight for small payloads (< 50KB JSON), zero connection overhead | Optimized for massive payloads (tens/hundreds of MB) and binary media |
-| **Cleanup** | Instant `removeItem()` when user submits or resets | Requires transaction to delete store records |
+| Metric                  | LocalStorage (For Form Drafts)                                                    | IndexedDB (For Project Data)                                           |
+| :---------------------- | :-------------------------------------------------------------------------------- | :--------------------------------------------------------------------- |
+| **Purpose**             | Temporary Dialog drafts (`Entity`, `Connection`, `Template`)                      | Full Project data tree, App State & Binary Attachments (`Blob`)        |
+| **Access Mechanism**    | **Synchronous** — Instant access (0ms latency)                                    | **Asynchronous** — Promise & Transaction based                         |
+| **UI Initialization**   | **Zero-Flicker**: Read synchronously on component initialization (`initialState`) | Requires `useEffect` + `setState` post-mount, causing UI layout shifts |
+| **Performance & Speed** | Ultra-lightweight for small payloads (< 50KB JSON), zero connection overhead      | Optimized for massive payloads (tens/hundreds of MB) and binary media  |
+| **Cleanup**             | Instant `removeItem()` when user submits or resets                                | Requires transaction to delete store records                           |
 
 > [!TIP]
 > **Storage Decision Summary:**
+>
 > - **Form Drafts (Dialog Drafts)** → Uses **`localStorage`** for **zero latency (0ms)**, **peak performance**, and **zero-flicker UI initialization**.
 > - **Project State & Attachments** → Uses **`IndexedDB`** for robust data persistence and large binary media handling.
 
@@ -406,11 +407,11 @@ Silic adopts a **2-Tier Storage Strategy** optimized for **speed** and **perform
 
 Each dialog type utilizes an isolated identifier key in `localStorage`:
 
-| Dialog | LocalStorage Key | Draft Data Structure |
-| :--- | :--- | :--- |
-| **EntitiesDialog** | `silic_draft_entity` | `{ id?: string, template?: string, records?: RecordFormState[] }` |
+| Dialog               | LocalStorage Key         | Draft Data Structure                                                                                                       |
+| :------------------- | :----------------------- | :------------------------------------------------------------------------------------------------------------------------- |
+| **EntitiesDialog**   | `silic_draft_entity`     | `{ id?: string, template?: string, records?: RecordFormState[] }`                                                          |
 | **ConnectionDialog** | `silic_draft_connection` | `{ id?: string, from?: string[], to?: string[], isDirectional?: boolean, template?: string, records?: RecordFormState[] }` |
-| **TemplateDialog** | `silic_draft_template` | `{ id: string, name: string, records: TemplateRecord[] }` |
+| **TemplateDialog**   | `silic_draft_template`   | `{ id: string, name: string, records: TemplateRecord[] }`                                                                  |
 
 ---
 
@@ -656,7 +657,7 @@ sequenceDiagram
 
 ## 11. Google Drive Cloud Integration & Synchronization Flows
 
-Silic offers seamless cloud synchronization with Google Drive without requiring any custom backend infrastructure (100% Client-Side Architecture). All interactions utilize official Google Identity Services (GIS) OAuth 2.0 with the secure `https://www.googleapis.com/auth/drive.file` and `https://www.googleapis.com/auth/drive.readonly` scopes.
+Silic offers seamless cloud synchronization with Google Drive without requiring any custom backend infrastructure (100% Client-Side Architecture). All interactions utilize official Google Identity Services (GIS) OAuth 2.0 with the secure `https://www.googleapis.com/auth/drive.file` scopes.
 
 ### 11.1. Architecture & Privacy Principles
 
@@ -715,6 +716,7 @@ sequenceDiagram
 ```
 
 #### Detailed Processing Steps:
+
 1. **Picker Invocation**: Google Drive Picker is displayed with the user's authenticated Google Account.
 2. **Media Stream Download**: Fetches binary bytes via `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`.
 3. **Web Worker Unpack**: The downloaded `ArrayBuffer` is passed to `zipWorker.ts` to extract JSON datasets and binary attachments without blocking the main UI thread.
@@ -815,6 +817,7 @@ sequenceDiagram
 ```
 
 #### Key Sharing Features:
+
 - **Zero Configuration**: Automatically sets `role: "reader"` and `type: "anyone"`, making the file accessible to anyone with the link.
 - **Auto-Upload Fallback**: If the user clicks Share on a local-only document, Silic automatically uploads it to Drive before creating the share link.
 - **Clipboard Integration**: Automatically copies the URL directly to the user's clipboard.
@@ -824,6 +827,7 @@ sequenceDiagram
 ### 11.5. Flow 4: Google Drive "Open with Silic" Integration (App Startup State Parameter)
 
 When a user right-clicks a `.silic` file on Google Drive and selects **"Open with Silic"** or creates a new file via **"New > More > Silic"**, Google Drive launches the application URL (`/d`) with a serialized `state` query parameter:
+
 ```json
 {
   "action": "open" | "create",
@@ -910,6 +914,7 @@ sequenceDiagram
 ```
 
 #### Detailed Processing Steps & Edge Cases:
+
 1. **URL Parameter Extraction (`handleDriveState`)**:
    - Parses the serialized `state` JSON parameter from the URL.
    - Extracts `ids[0]`, `resourceKeys[ids[0]]` (for `open`), `folderId`, `folderResourceKey` (for `create`), and `userId`.
@@ -926,5 +931,3 @@ sequenceDiagram
    - **404 Not Found**: Informs the user that the target file does not exist or was deleted permanently.
    - **Trash Check**: Validates `trashed` and `explicitlyTrashed` flags before downloading binaries.
    - **File Corruption**: Traps decompression and Web Worker errors, showing explicit diagnostic notifications rather than failing silently.
-
-

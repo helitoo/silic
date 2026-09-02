@@ -114,8 +114,7 @@ export async function getGoogleAccessToken(options?: {
 
       const client = google.accounts.oauth2.initTokenClient({
         client_id: clientId,
-        scope:
-          "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly",
+        scope: "https://www.googleapis.com/auth/drive.file",
         hint: options?.hint,
         callback: (response: DriveTokenResponse) => {
           if (response.error) {
@@ -274,9 +273,11 @@ export async function saveToDrive(
   }
 
   if (folderResourceKey && parentFolderId && parentFolderId !== "root") {
-    headers["X-Goog-Drive-Resource-Keys"] = `${parentFolderId}/${folderResourceKey}`
+    headers["X-Goog-Drive-Resource-Keys"] =
+      `${parentFolderId}/${folderResourceKey}`
   } else if (fileResourceKey && existingFileId) {
-    headers["X-Goog-Drive-Resource-Keys"] = `${existingFileId}/${fileResourceKey}`
+    headers["X-Goog-Drive-Resource-Keys"] =
+      `${existingFileId}/${fileResourceKey}`
   }
 
   const res = await fetch(url, {
@@ -334,7 +335,9 @@ export async function shareViewOnly(
 /**
  * Generate an empty .silic project archive in memory.
  */
-export function createEmptySilicBuffer(fileName: string = "Untitled"): ArrayBuffer {
+export function createEmptySilicBuffer(
+  fileName: string = "Untitled"
+): ArrayBuffer {
   const manifest = {
     version: 1,
     fileName,
@@ -343,10 +346,7 @@ export function createEmptySilicBuffer(fileName: string = "Untitled"): ArrayBuff
   }
 
   const zipEntries: Zippable = {
-    "manifest.json": [
-      strToU8(JSON.stringify(manifest, null, 2)),
-      { level: 6 },
-    ],
+    "manifest.json": [strToU8(JSON.stringify(manifest, null, 2)), { level: 6 }],
     "entities.json": [strToU8("[]"), { level: 6 }],
     "connections.json": [strToU8("[]"), { level: 6 }],
     "templates.json": [strToU8("[]"), { level: 6 }],
@@ -391,7 +391,8 @@ export function handleDriveState(): DriveStateAction | null {
         parsed.resourceKeys && typeof parsed.resourceKeys === "object"
           ? parsed.resourceKeys[fileId]
           : undefined
-      const userId = typeof parsed.userId === "string" ? parsed.userId : undefined
+      const userId =
+        typeof parsed.userId === "string" ? parsed.userId : undefined
       return { action: "open", fileId, resourceKey, userId }
     }
     if (parsed.action === "create") {
@@ -400,7 +401,8 @@ export function handleDriveState(): DriveStateAction | null {
         typeof parsed.folderResourceKey === "string"
           ? parsed.folderResourceKey
           : undefined
-      const userId = typeof parsed.userId === "string" ? parsed.userId : undefined
+      const userId =
+        typeof parsed.userId === "string" ? parsed.userId : undefined
       return { action: "create", folderId, folderResourceKey, userId }
     }
     return null
@@ -416,4 +418,3 @@ export function handleDriveOpenState(): string | null {
   const driveState = handleDriveState()
   return driveState?.action === "open" ? driveState.fileId : null
 }
-
