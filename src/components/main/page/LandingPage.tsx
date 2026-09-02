@@ -205,24 +205,29 @@ export function LandingPage() {
 
           {/* Action CTAs */}
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-            <Button
-              size="lg"
-              onClick={() => navigate("/d")}
-              className="h-11 cursor-pointer gap-2 rounded-xl px-6 text-sm font-semibold shadow-lg shadow-primary/25 transition-all hover:scale-[1.02] active:scale-[0.98] sm:h-12 sm:px-7 sm:text-base"
+            <a
+              href="/d"
+              onClick={(e) => {
+                e.preventDefault()
+                navigate("/d")
+              }}
+              className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:scale-[1.02] hover:bg-primary/80 active:scale-[0.98] sm:h-12 sm:px-7 sm:text-base"
             >
               <span>{t("landing.startExploring")}</span>
               <ArrowRight className="size-4" />
-            </Button>
+            </a>
 
-            <Button
-              size="lg"
-              variant="secondary"
-              onClick={() => navigate("/guide")}
-              className="h-11 cursor-pointer gap-2 rounded-xl border border-border/80 px-5 text-sm font-medium shadow-xs transition-all hover:bg-muted sm:h-12 sm:px-6 sm:text-base"
+            <a
+              href="/guide"
+              onClick={(e) => {
+                e.preventDefault()
+                navigate("/guide")
+              }}
+              className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/80 bg-secondary px-5 text-sm font-medium text-secondary-foreground shadow-xs transition-all hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] sm:h-12 sm:px-6 sm:text-base"
             >
               <Compass className="size-4 text-primary" />
               <span>{t("landing.viewGuide") || "User Guide"}</span>
-            </Button>
+            </a>
 
             <Button
               size="lg"
@@ -237,9 +242,12 @@ export function LandingPage() {
 
           {/* Quick Value Metrics */}
           <div className="mt-9 grid grid-cols-2 gap-4 border-t border-border/50 pt-6 sm:grid-cols-4 sm:gap-8">
-            <button
-              type="button"
-              onClick={() => navigate("/guide")}
+            <a
+              href="/guide"
+              onClick={(e) => {
+                e.preventDefault()
+                navigate("/guide")
+              }}
               className="group flex cursor-pointer flex-col items-center transition-transform hover:scale-105"
             >
               <span className="text-xl font-bold tracking-tight text-foreground transition-colors group-hover:text-primary sm:text-2xl lg:text-3xl">
@@ -248,11 +256,14 @@ export function LandingPage() {
               <span className="mt-0.5 text-xs text-muted-foreground sm:text-sm">
                 {t("landing.quickStatsEntities")}
               </span>
-            </button>
+            </a>
 
-            <button
-              type="button"
-              onClick={() => navigate("/d?tab=connections")}
+            <a
+              href="/d?tab=connections"
+              onClick={(e) => {
+                e.preventDefault()
+                navigate("/d?tab=connections")
+              }}
               className="group flex cursor-pointer flex-col items-center transition-transform hover:scale-105"
             >
               <span className="text-xl font-bold tracking-tight text-foreground transition-colors group-hover:text-primary sm:text-2xl lg:text-3xl">
@@ -261,11 +272,14 @@ export function LandingPage() {
               <span className="mt-0.5 text-xs text-muted-foreground sm:text-sm">
                 {t("landing.quickStatsRelations")}
               </span>
-            </button>
+            </a>
 
-            <button
-              type="button"
-              onClick={() => navigate("/docs-storage")}
+            <a
+              href="/docs-storage"
+              onClick={(e) => {
+                e.preventDefault()
+                navigate("/docs-storage")
+              }}
               className="group flex cursor-pointer flex-col items-center transition-transform hover:scale-105"
             >
               <span className="text-xl font-bold tracking-tight text-foreground transition-colors group-hover:text-primary sm:text-2xl lg:text-3xl">
@@ -274,7 +288,7 @@ export function LandingPage() {
               <span className="mt-0.5 text-xs text-muted-foreground sm:text-sm">
                 {t("landing.quickStatsPrivacy")}
               </span>
-            </button>
+            </a>
 
             <button
               type="button"
@@ -344,9 +358,13 @@ export function LandingPage() {
             {featureCards.map((feat, idx) => {
               const IconComp = feat.icon
               return (
-                <div
+                <a
                   key={idx}
-                  onClick={() => navigate(feat.href)}
+                  href={feat.href}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    navigate(feat.href)
+                  }}
                   className="group relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border border-border/70 bg-card/80 p-6 shadow-xs backdrop-blur-md transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5"
                 >
                   <div>
@@ -372,7 +390,7 @@ export function LandingPage() {
                     <span>{t("landing.learnMore") || "Learn more"}</span>
                     <ArrowRight className="size-3.5" />
                   </div>
-                </div>
+                </a>
               )
             })}
           </div>
@@ -385,9 +403,12 @@ export function LandingPage() {
           <div className="grid grid-cols-2 gap-8 md:grid-cols-4 lg:gap-12">
             {/* Brand Column */}
             <div className="col-span-2 space-y-4 md:col-span-1">
-              <button
-                type="button"
-                onClick={() => navigate("/")}
+              <a
+                href="/"
+                onClick={(e) => {
+                  e.preventDefault()
+                  navigate("/")
+                }}
                 className="flex cursor-pointer items-center gap-2"
               >
                 <img
@@ -396,7 +417,7 @@ export function LandingPage() {
                   className="h-9 w-auto object-contain"
                   draggable={false}
                 />
-              </button>
+              </a>
               <p className="text-xs leading-relaxed text-muted-foreground">
                 Silic - Ứng dụng ghi chú dựa trên đồ thị tri thức đa thuộc tính.
               </p>
@@ -412,40 +433,52 @@ export function LandingPage() {
               </h4>
               <ul className="space-y-2 text-xs">
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/d?tab=diagram")}
+                  <a
+                    href="/d?tab=diagram"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      navigate("/d?tab=diagram")
+                    }}
                     className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
                   >
                     {t("navbar.diagram")}
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/d?tab=entities")}
+                  <a
+                    href="/d?tab=entities"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      navigate("/d?tab=entities")
+                    }}
                     className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
                   >
                     {t("navbar.entities")}
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/d?tab=connections")}
+                  <a
+                    href="/d?tab=connections"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      navigate("/d?tab=connections")
+                    }}
                     className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
                   >
                     {t("navbar.connections")}
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/d?tab=templates")}
+                  <a
+                    href="/d?tab=templates"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      navigate("/d?tab=templates")
+                    }}
                     className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
                   >
                     {t("navbar.templates")}
-                  </button>
+                  </a>
                 </li>
               </ul>
             </div>
@@ -457,36 +490,45 @@ export function LandingPage() {
               </h4>
               <ul className="space-y-2 text-xs">
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/guide")}
+                  <a
+                    href="/guide"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      navigate("/guide")
+                    }}
                     className="flex cursor-pointer items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
                   >
                     <Compass className="size-3.5 text-primary" />
                     <span>{t("navbar.guide") || "User Guide"}</span>
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/docs-query")}
+                  <a
+                    href="/docs-query"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      navigate("/docs-query")
+                    }}
                     className="flex cursor-pointer items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
                   >
                     <FileCode2 className="size-3.5 text-primary" />
                     <span>{t("navbar.docsQuery") || "Query Architecture"}</span>
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/docs-storage")}
+                  <a
+                    href="/docs-storage"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      navigate("/docs-storage")
+                    }}
                     className="flex cursor-pointer items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
                   >
                     <HardDrive className="size-3.5 text-primary" />
                     <span>
                       {t("navbar.docsStorage") || "Storage Architecture"}
                     </span>
-                  </button>
+                  </a>
                 </li>
               </ul>
             </div>
@@ -498,26 +540,24 @@ export function LandingPage() {
               </h4>
               <ul className="space-y-2 text-xs">
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/policy-of-privacy")}
+                  <a
+                    href="https://silic.kemlib.com/policy-of-privacy"
                     className="flex cursor-pointer items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
                   >
                     <ShieldLock className="size-3.5 text-primary" />
                     <span>{t("navbar.privacyPolicy") || "Privacy Policy"}</span>
-                  </button>
+                  </a>
                 </li>
                 <li>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/terms-of-service")}
+                  <a
+                    href="https://silic.kemlib.com/policy-of-privacy"
                     className="flex cursor-pointer items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
                   >
                     <ReceiptText className="size-3.5 text-primary" />
                     <span>
                       {t("navbar.termsOfService") || "Terms of Service"}
                     </span>
-                  </button>
+                  </a>
                 </li>
               </ul>
             </div>
