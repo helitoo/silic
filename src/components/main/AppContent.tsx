@@ -55,6 +55,7 @@ export default function AppContent() {
   const [editingEntity, setEditingEntity] = useState<any>(null)
   const [isEntityDialogOpen, setIsEntityDialogOpen] = useState(false)
   const [isClearAlertOpen, setIsClearAlertOpen] = useState(false)
+  const [isNewAlertOpen, setIsNewAlertOpen] = useState(false)
 
   const handleUploadSilic = useCallback(async () => {
     const file = await uploadSingleFile({ accept: ".silic" })
@@ -72,7 +73,7 @@ export default function AppContent() {
       onOpenDrive: handleOpenPicker,
       onUploadDevice: handleUploadSilic,
       onDownload: handleDownloadSilic,
-      onNewProject: newProject,
+      onNewProject: () => setIsNewAlertOpen(true),
       onClear: () => setIsClearAlertOpen(true),
       onOpenEntityQuery: openEntityQuery,
       onOpenPathQuery: openPathQuery,
@@ -82,7 +83,6 @@ export default function AppContent() {
       handleOpenPicker,
       handleUploadSilic,
       handleDownloadSilic,
-      newProject,
       openEntityQuery,
       openPathQuery,
       openAnalysis,
@@ -176,6 +176,34 @@ export default function AppContent() {
           onOpenChange={setIsEntityDialogOpen}
           defaultValue={editingEntity}
         />
+
+        {/* New Project Confirmation Alert Dialog for Mobile Sidebar */}
+        <AlertDialog open={isNewAlertOpen} onOpenChange={setIsNewAlertOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {t("common.newConfirmTitle") || "Tạo dự án mới?"}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("common.newConfirmDescription") ||
+                  "Hành động này sẽ làm mới toàn bộ không gian làm việc. Bạn có chắc chắn muốn tạo một dự án mới?"}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>
+                {t("common.cancel") || "Hủy"}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  await newProject()
+                  setIsNewAlertOpen(false)
+                }}
+              >
+                {t("navbar.new") || "Tạo mới"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Clear Project Confirmation Alert Dialog for Mobile Sidebar */}
         <AlertDialog open={isClearAlertOpen} onOpenChange={setIsClearAlertOpen}>

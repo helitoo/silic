@@ -47,7 +47,7 @@ export function AppMobileSidebar({ actions }: { actions?: NavItemActions }) {
   const displayedItems = React.useMemo(() => {
     if (isLanding) {
       return items.filter(
-        (g) => g.label === t("navbar.guide") || g.label === "Guide"
+        (g) => g.id === "guide" || g.label === t("navbar.guide") || g.label === "Guide"
       )
     }
     return items

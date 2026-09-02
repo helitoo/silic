@@ -181,7 +181,7 @@ export default function Navbar() {
 
   if (isLanding) {
     const guideGroup =
-      items.find((g) => g.label === t("navbar.guide") || g.label === "Guide") ||
+      items.find((g) => g.id === "guide" || g.label === t("navbar.guide") || g.label === "Guide") ||
       items[items.length - 1]
 
     return (

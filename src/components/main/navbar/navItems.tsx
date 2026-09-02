@@ -27,6 +27,7 @@ export interface NavItemActions {
 }
 
 export interface NavItem {
+  id?: string
   icon?: React.ComponentType<{ className?: string }> | React.ReactNode
   label?: React.ReactNode | React.ComponentType
   kbd?: string
@@ -43,27 +44,35 @@ export function getNavItems(
 ): NavItem[] {
   return [
     {
+      id: "file",
       label: t("navbar.file"),
       subItems: [
         {
+          id: "new",
           icon: Plus,
           label: t("navbar.new"),
+          kbd: "⌘ N",
           kdb: "⌘ N",
           onClick: actions?.onNewProject,
         },
         {
+          id: "uploadDevice",
           icon: Upload,
           label: t("navbar.uploadDevice"),
+          kbd: "⌘ U",
           kdb: "⌘ U",
           onClick: actions?.onUploadDevice,
         },
         {
+          id: "download",
           icon: Download,
           label: t("navbar.download"),
+          kbd: "⌘ D",
           kdb: "⌘ D",
           onClick: actions?.onDownload,
         },
         {
+          id: "clear",
           icon: Trash2,
           label: t("navbar.clear") || "Clear",
           onClick: actions?.onClear,
@@ -71,57 +80,71 @@ export function getNavItems(
       ],
     },
     {
+      id: "advanced",
       label: t("navbar.advanced") || "Nâng cao",
       subItems: [
         {
+          id: "searchEntity",
           icon: UsersRound,
           label: t("navbar.searchEntity") || "Entity",
+          kbd: "⌘ Q",
           kdb: "⌘ Q",
           onClick: actions?.onOpenEntityQuery,
         },
         {
+          id: "searchPath",
           icon: Route,
           label: t("navbar.searchPath") || "Path",
+          kbd: "⌘ ⇧ Q",
           kdb: "⌘ ⇧ Q",
           onClick: actions?.onOpenPathQuery,
         },
         {
+          id: "analysis",
           icon: BarChart3,
           label: t("navbar.analysis") || "Phân tích",
+          kbd: "⌘ ⇧ K",
           kdb: "⌘ ⇧ K",
           onClick: actions?.onOpenAnalysis,
         },
       ],
     },
     {
+      id: "guide",
       label: t("navbar.guide") || "Guide",
       subItems: [
         {
+          id: "guide",
           icon: Compass,
           label: t("navbar.guide") || "Guide",
           href: "/guide",
         },
         {
+          id: "docsQuery",
           icon: FileCode2,
           label: t("navbar.docsQuery") || "Query Architecture",
           href: "/docs-query",
         },
         {
+          id: "docsStorage",
           icon: HardDrive,
           label: t("navbar.docsStorage") || "Storage Architecture",
           href: "/docs-storage",
         },
         {
+          id: "privacyPolicy",
           icon: ShieldLock,
           label: t("navbar.privacyPolicy") || "Privacy Policy",
           href: "/policy-of-privacy",
         },
         {
+          id: "termsOfService",
           icon: ReceiptText,
           label: t("navbar.termsOfService") || "Terms of Service",
           href: "/terms-of-service",
         },
         {
+          id: "help",
           icon: CircleQuestionMark,
           label: t("navbar.help"),
           href: "https://www.facebook.com/bminh.tb",
