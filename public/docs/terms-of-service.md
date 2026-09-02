@@ -1,7 +1,6 @@
 # Silic Terms of Service
 
-Version: _v0.1.0_.  
-Released on September 1, 2026, alongside Silic software version _v0.1.0_.
+Version: _v0.1.0_.
 
 These terms constitute an agreement between the user and the Silic developer, governing the user's use of Silic's services (as outlined in Section 1) in accordance with the laws of the Socialist Republic of Vietnam.
 
@@ -29,7 +28,11 @@ Users are prohibited from engaging in the following actions:
 2. Silic is not responsible for any data created, stored, or shared by users through the service. Users assume full responsibility for their content and all legal matters related to their data.
 3. Silic makes every reasonable effort to respond to support requests; however, the applications are provided free of charge with no guaranteed response or resolution timeframe.
 
-## 4. Developer Contact Information
+## 4. Contact Information
 
-- Email: bao162006@gmail.com
-- GitHub: [github.com/helitoo](https://github.com/helitoo)
+If you have any questions, feedback, or concerns regarding this Privacy Policy or our privacy practices, please contact us at:
+
+- **Developer / Maintainer:** Helitoo
+- **Email:** [bao162006@gmail.com](mailto:bao162006@gmail.com)
+- **GitHub Repository:** [https://github.com/helitoo/silic](https://github.com/helitoo/silic)
+- **Project Website:** [https://silic.kemlib.com](https://silic.kemlib.com)

@@ -541,7 +541,11 @@ export function LandingPage() {
               <ul className="space-y-2 text-xs">
                 <li>
                   <a
-                    href="https://silic.kemlib.com/policy-of-privacy"
+                    href="/policy-of-privacy"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      navigate("/policy-of-privacy")
+                    }}
                     className="flex cursor-pointer items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
                   >
                     <ShieldLock className="size-3.5 text-primary" />
@@ -550,7 +554,11 @@ export function LandingPage() {
                 </li>
                 <li>
                   <a
-                    href="https://silic.kemlib.com/policy-of-privacy"
+                    href="/terms-of-service"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      navigate("/terms-of-service")
+                    }}
                     className="flex cursor-pointer items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
                   >
                     <ReceiptText className="size-3.5 text-primary" />
