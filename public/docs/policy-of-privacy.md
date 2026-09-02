@@ -1,22 +1,28 @@
 # Silic Privacy Policy
 
-Version: _v0.1.0_.  
-Released on September 1, 2026, alongside Silic software version _v0.1.0_.
+Version: _v0.2.0_.  
+Released on September 2, 2026, alongside Silic software version _v0.3.0_.
 
 This policy outlines how user data is stored and processed when using Silic services, as well as the user's rights regarding their personal data, in accordance with the laws of the Socialist Republic of Vietnam.
 
 ## 1. On the Silic Platform
 
-User data is stored and processed strictly locally on the user's device using LocalStorage and IndexedDB technologies. Silic does not collect, track, store on remote servers, or share user data.
+By default, Silic stores and processes your data locally on your device using technologies such as LocalStorage and IndexedDB.
 
-Users have the right to:
+Silic does not transmit this data to its own servers, sell it, or share it with third parties.
 
-- **Right to be Informed**: Understand how their data is structured and processed via the _Storage Architecture_ and _Query Architecture_ documentation on the Silic platform.
-- **Right to Consent**: By using Silic's services, users agree to Silic's Terms of Service and consent to having their data stored and processed according to Silic's declared architecture.
-- **Right to Access**: View and inspect any data currently stored locally or within project sessions.
-- **Right to Rectification**: Modify or correct any inaccurate data at any time.
-- **Right to Erasure**: Permanently delete data when expired or no longer needed.
+You can view, modify, or permanently delete your locally stored data at any time.
+
+For more information, see our [Storage Architecture][https://silic.vercel.app/docs-storage] and [Query Architecture][https://silic.vercel.app/docs-query] documentation.
 
 ## 2. On Third-Party Platforms
 
-When contacting the Silic developer through third-party platforms such as GitHub or Gmail, users are subject to the respective Terms of Service and Privacy Policies of those platforms. The Silic developer reserves the right to retain user-provided personal details (such as contact information) solely for technical support, inquiry resolution, or other user-consented purposes.
+If you contact the Silic developer through third-party services such as GitHub or Gmail, your interaction is subject to the privacy policies and terms of those services.
+
+The Silic developer may retain information you voluntarily provide, such as your contact details or support requests, solely for providing technical support, resolving inquiries, or other purposes you have agreed to.
+
+## 3. Google Drive integration
+
+Silic optionally supports Google Drive integration. If you enable this feature, Silic may access, store, edit, or share data through your Google Drive according to the permissions you grant.
+
+Your Google Drive data remains under your Google account and Google's applicable policies. Silic does not copy or transmit your Google Drive data to its own servers.
