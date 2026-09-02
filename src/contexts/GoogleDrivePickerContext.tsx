@@ -2,6 +2,7 @@ import * as React from "react"
 import rawUseDrivePicker from "react-google-drive-picker"
 import { useProjectStorage } from "./ProjectStorageContext"
 import { useLang } from "./LangContext"
+import { useRouter } from "./RouterContext"
 import { toast } from "@/components/ui/toast"
 import { copyToClipboard } from "@/lib/utils"
 import {
@@ -104,6 +105,7 @@ export function GoogleDrivePickerProvider({
   children: React.ReactNode
 }) {
   const { t } = useLang()
+  const { navigate } = useRouter()
   const {
     driveFileId,
     setDriveFileId,
@@ -239,6 +241,7 @@ export function GoogleDrivePickerProvider({
                 })
 
                 await importProjectSilic(file, fileId)
+                navigate("/d")
 
                 toast.add({
                   type: "success",
@@ -280,6 +283,7 @@ export function GoogleDrivePickerProvider({
       authRes,
       hideLoading,
       importProjectSilic,
+      navigate,
       openPicker,
       setDriveFileId,
       showLoading,
@@ -589,11 +593,13 @@ export function GoogleDrivePickerProvider({
     const fileId = handleDriveOpenState()
     if (!fileId) return
 
-    // Clean URL state param to prevent re-opening on reload
+    // Clean URL state param to prevent re-opening on reload and ensure we are on /d
     try {
       const url = new URL(window.location.href)
       url.searchParams.delete("state")
-      window.history.replaceState({}, document.title, url.toString())
+      const targetPath = url.pathname === "/" || url.pathname === "" ? "/d" : url.pathname
+      const newSearch = url.searchParams.toString() ? `?${url.searchParams.toString()}` : ""
+      window.history.replaceState({}, document.title, targetPath + newSearch)
     } catch {
       // ignore
     }
@@ -625,6 +631,7 @@ export function GoogleDrivePickerProvider({
         })
 
         await importProjectSilic(file, targetFileId)
+        navigate("/d")
 
         toast.add({
           type: "success",
@@ -648,7 +655,7 @@ export function GoogleDrivePickerProvider({
     }
 
     loadDriveFile(fileId)
-  }, [hideLoading, importProjectSilic, showLoading, t])
+  }, [hideLoading, importProjectSilic, navigate, showLoading, t])
 
   const contextValue = React.useMemo<GoogleDrivePickerContextType>(
     () => ({
