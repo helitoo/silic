@@ -607,6 +607,17 @@
     "syncing": "Đang đồng bộ với Google Drive...",
     "trashedError": "Tệp đã bị chuyển vào thùng rác trên Google Drive",
     "fileTrashedTitle": "Tệp trên Drive đã bị xóa",
-    "fileTrashedSaveDesc": "Tệp trên Google Drive hiện đang ở trong thùng rác. Vui lòng chọn vị trí lưu mới."
+    "fileTrashedSaveDesc": "Tệp trên Google Drive hiện đang ở trong thùng rác. Vui lòng chọn vị trí lưu mới.",
+    "authRequiredTitle": "Yêu cầu đăng nhập Google",
+    "authRequiredDesc": "Vui lòng đăng nhập tài khoản Google Drive để tiếp tục thao tác với tệp tin.",
+    "authRequiredHint": "Tài khoản Google Drive yêu cầu: {{userId}}",
+    "signInButton": "Đăng nhập Google",
+    "forbiddenError": "Không có quyền truy cập tệp",
+    "forbiddenErrorDesc": "Tài khoản Google hiện tại không có quyền truy cập tệp này. Vui lòng kiểm tra lại quyền chia sẻ hoặc chuyển đúng tài khoản Google.",
+    "notFoundError": "Không tìm thấy tệp trên Google Drive",
+    "notFoundErrorDesc": "Tệp có thể đã bị xóa vĩnh viễn hoặc liên kết không hợp lệ.",
+    "corruptError": "Tệp .silic không hợp lệ",
+    "corruptErrorDesc": "Tệp bị lỗi cấu trúc hoặc không phải định dạng dự án Silic.",
+    "authCancelled": "Đã hủy đăng nhập Google Drive"
   }
 }

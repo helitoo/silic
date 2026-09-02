@@ -607,6 +607,17 @@
     "syncing": "Syncing with Google Drive...",
     "trashedError": "File has been moved to trash on Google Drive",
     "fileTrashedTitle": "File on Drive is trashed",
-    "fileTrashedSaveDesc": "The file on Google Drive is in trash. Please choose a new location to save."
+    "fileTrashedSaveDesc": "The file on Google Drive is in trash. Please choose a new location to save.",
+    "authRequiredTitle": "Google Sign-in Required",
+    "authRequiredDesc": "Please sign in with your Google account to open or create this file on Google Drive.",
+    "authRequiredHint": "Google Drive account required: {{userId}}",
+    "signInButton": "Sign in with Google",
+    "forbiddenError": "Access Denied",
+    "forbiddenErrorDesc": "The current Google account does not have permission to access this file. Please verify share permissions or switch Google accounts.",
+    "notFoundError": "File Not Found on Google Drive",
+    "notFoundErrorDesc": "The file may have been permanently deleted or the link is invalid.",
+    "corruptError": "Invalid .silic File",
+    "corruptErrorDesc": "The file structure is corrupted or not a valid Silic project file.",
+    "authCancelled": "Google Drive sign-in cancelled"
   }
 }

@@ -823,57 +823,108 @@ sequenceDiagram
 
 ### 11.5. Flow 4: Google Drive "Open with Silic" Integration (App Startup State Parameter)
 
-When a user right-clicks a `.silic` file on Google Drive and selects **"Open with Silic"**, Google Drive launches the application URL with a serialized `state` query parameter:
-`https://silic.app/?state={"ids":["0B..."],"action":"open","userId":"..."}`
+When a user right-clicks a `.silic` file on Google Drive and selects **"Open with Silic"** or creates a new file via **"New > More > Silic"**, Google Drive launches the application URL (`/d`) with a serialized `state` query parameter:
+```json
+{
+  "action": "open" | "create",
+  "ids": ["0B..."],
+  "resourceKeys": { "0B...": "rk_val" },
+  "folderId": "0B_folder...",
+  "folderResourceKey": "folder_rk_val",
+  "userId": "1029384756..."
+}
+```
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor User as Google Drive User
     participant Browser as Browser Window
-    participant DriveCtx as GoogleDrivePickerContext (on mount)
+    participant DriveCtx as GoogleDrivePickerContext
+    participant AuthModal as Sign-in Prompt Dialog
+    participant GIS as Google Identity Services (GIS)
     participant DriveAPI as Google Drive API v3
     participant StorageCtx as ProjectStorageContext
     participant Worker as Web Worker (zipWorker.ts)
     participant IDB as IndexedDB (silic-db)
 
-    User->>Browser: Click "Open with Silic" or "New > Silic" in Google Drive Web UI
-    Browser->>Browser: Navigate to https://silic.kemlib.com/d?state={"action":"open"|"create",...}
+    User->>Browser: Click "Open with Silic" or "New > Silic" in Drive Web UI
+    Browser->>Browser: Navigate to https://silic.kemlib.com/d?state={...}
     Browser->>DriveCtx: GoogleDrivePickerProvider mounts
 
-    DriveCtx->>DriveCtx: handleDriveState() -> detects action ("open" or "create")
-    DriveCtx->>Browser: window.history.replaceState() (Strip `state` param and ensure /d route)
+    DriveCtx->>DriveCtx: handleDriveState() -> extracts action, IDs, resourceKeys, userId
+    DriveCtx->>Browser: window.history.replaceState() (Strip `state` & ensure /d route)
 
-    alt action === "open"
-        DriveCtx->>DriveCtx: showLoading("Loading file from Google Drive...")
-        DriveCtx->>DriveCtx: getGoogleAccessToken() (Trigger GIS OAuth token request)
-        DriveCtx->>DriveAPI: fetch("https://www.googleapis.com/drive/v3/files/file123?alt=media")
-        DriveAPI-->>DriveCtx: Return binary ArrayBuffer
-        DriveCtx->>StorageCtx: importProjectSilic(new File([buffer], "drive-project.silic"), "file123")
-        StorageCtx->>Worker: postMessage({ action: "import", buffer })
-        Worker-->>StorageCtx: Return extracted datasets & attachments
-        StorageCtx->>IDB: Save attachments & App State
-        StorageCtx->>StorageCtx: setDriveFileId("file123")
-    else action === "create"
-        DriveCtx->>DriveCtx: showLoading("Creating file on Google Drive...")
-        DriveCtx->>DriveCtx: getGoogleAccessToken()
-        DriveCtx->>StorageCtx: newProject() (Reset workspace)
-        DriveCtx->>DriveCtx: createEmptySilicBuffer("Untitled")
-        DriveCtx->>DriveAPI: saveToDrive(emptyBlob, "Untitled.silic", token, undefined, folderId)
-        DriveAPI-->>DriveCtx: Return created file { id: "newFile123" }
-        DriveCtx->>StorageCtx: setDriveFileId("newFile123")
+    DriveCtx->>DriveCtx: Try silent OAuth: getGoogleAccessToken({ prompt: "", hint: userId })
+    alt Silent OAuth Fails (User Activation Required / Popup Blocked)
+        DriveCtx->>AuthModal: Display "Sign in with Google" Prompt Dialog (with userId hint)
+        User->>AuthModal: Click "Sign in with Google" (User Click Gesture)
+        AuthModal->>GIS: getGoogleAccessToken({ prompt: "consent", hint: userId })
+        GIS-->>DriveCtx: Return OAuth 2.0 Access Token
+    else Silent OAuth Succeeds
+        GIS-->>DriveCtx: Return Cached / Silent Access Token
     end
 
-    DriveCtx->>DriveCtx: hideLoading()
-    DriveCtx->>User: Display success Toast
+    alt action === "open"
+        DriveCtx->>DriveAPI: GET /files/{fileId}?fields=id,name,mimeType,trashed (Header: X-Goog-Drive-Resource-Keys)
+        alt 403 Forbidden (Wrong Google Account / No Access)
+            DriveAPI-->>DriveCtx: 403 Forbidden
+            DriveCtx->>User: Toast Error: "Access Denied. Please switch to the correct Google account."
+        else 404 Not Found (Permanently Deleted)
+            DriveAPI-->>DriveCtx: 404 Not Found
+            DriveCtx->>User: Toast Error: "File not found on Google Drive."
+        else File is in Trash (trashed === true)
+            DriveAPI-->>DriveCtx: Metadata { trashed: true }
+            DriveCtx->>User: Toast Error: "File has been moved to trash on Google Drive."
+        else File is Active (200 OK)
+            DriveAPI-->>DriveCtx: Metadata { name: "project.silic", trashed: false }
+            DriveCtx->>DriveAPI: GET /files/{fileId}?alt=media (Header: X-Goog-Drive-Resource-Keys)
+            DriveAPI-->>DriveCtx: Return binary ArrayBuffer
+            DriveCtx->>StorageCtx: importProjectSilic(new File([buffer]), fileId)
+            StorageCtx->>Worker: postMessage({ action: "import", buffer })
+            alt Corrupted File / Invalid Archive
+                Worker-->>StorageCtx: Error: "Import failed / Invalid format"
+                StorageCtx->>User: Toast Error: "Invalid or Corrupted .silic File"
+            else Successful Decompression
+                Worker-->>StorageCtx: Extracted datasets & attachments
+                StorageCtx->>IDB: Save attachments & App State
+                StorageCtx->>StorageCtx: setDriveFileId(fileId)
+                DriveCtx->>Browser: navigate("/d")
+                DriveCtx->>User: Toast Success: "Opened file from Google Drive"
+            end
+        end
+    else action === "create"
+        DriveCtx->>StorageCtx: newProject() (Reset workspace to blank canvas)
+        DriveCtx->>DriveCtx: createEmptySilicBuffer("Untitled")
+        DriveCtx->>DriveAPI: POST /files?uploadType=multipart (parents: [folderId], Header: X-Goog-Drive-Resource-Keys)
+        alt Create File Error (403/404)
+            DriveAPI-->>DriveCtx: Error response
+            DriveCtx->>User: Toast Error: "Failed to create file on Google Drive"
+        else Create File Success (200 OK)
+            DriveAPI-->>DriveCtx: Return created file { id: "newFile123" }
+            DriveCtx->>StorageCtx: setDriveFileId("newFile123")
+            DriveCtx->>Browser: navigate("/d")
+            DriveCtx->>User: Toast Success: "Created new file on Google Drive"
+        end
+    end
 ```
 
-#### Detailed Processing Steps:
-1. **URL Parameter Parsing (`handleDriveState`)**: Extracts the `ids[0]` when `action === "open"`, or `folderId` when `action === "create"` from the URL `state` JSON parameter.
-2. **URL Parameter Sanitization**: Invokes `history.replaceState` immediately to remove the `state` parameter from the address bar and navigates to `/d`, preventing duplicate re-triggers on browser refresh.
-3. **On-Demand OAuth Authentication**: Automatically prompts the user for Google authorization (if not already cached) to obtain the required access token.
-4. **Direct Stream Import / Create**:
-   - **Open**: Downloads the binary archive, passes it to the Web Worker for decompression, stores all data in IndexedDB, and binds `driveFileId`.
-   - **Create**: Clears the canvas, generates a blank `.silic` archive in-memory, creates the file in the target Drive folder via Google Drive API multipart upload, and binds the newly generated `driveFileId`.
+#### Detailed Processing Steps & Edge Cases:
+1. **URL Parameter Extraction (`handleDriveState`)**:
+   - Parses the serialized `state` JSON parameter from the URL.
+   - Extracts `ids[0]`, `resourceKeys[ids[0]]` (for `open`), `folderId`, `folderResourceKey` (for `create`), and `userId`.
+2. **URL Parameter Sanitization**:
+   - Immediately strips the `state` query parameter using `history.replaceState` and ensures the pathname is `/d`, preventing accidental duplicate requests upon browser refresh.
+3. **User Activation & Anti-Popup-Blocking Authentication**:
+   - Attempts silent token acquisition first (`prompt: ""`, with `hint: userId`).
+   - If silent token resolution fails (because the browser requires user activation to open OAuth popups), a dedicated **Sign-in Prompt Dialog** is displayed.
+   - Clicking the dialog's action button executes OAuth inside a legitimate browser user gesture, preventing popup blockers.
+4. **Link-Shared Resource Keys**:
+   - Automatically attaches the `X-Goog-Drive-Resource-Keys` header (`${fileId}/${resourceKey}` or `${folderId}/${folderResourceKey}`) on all Google Drive API v3 requests to support files/folders created with link-sharing security updates.
+5. **Multi-Account & Error Handling**:
+   - **403 Forbidden**: Informs the user of permission denial and advises switching to the designated Google account.
+   - **404 Not Found**: Informs the user that the target file does not exist or was deleted permanently.
+   - **Trash Check**: Validates `trashed` and `explicitlyTrashed` flags before downloading binaries.
+   - **File Corruption**: Traps decompression and Web Worker errors, showing explicit diagnostic notifications rather than failing silently.
 
 

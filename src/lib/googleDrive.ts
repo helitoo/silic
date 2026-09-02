@@ -1,4 +1,5 @@
 // Google Drive API & OAuth Utilities for Silic
+import { strToU8, zipSync, type Zippable } from "fflate"
 
 export interface DriveTokenResponse {
   access_token: string
@@ -9,6 +10,17 @@ export interface DriveTokenResponse {
   error_description?: string
 }
 
+export class DriveApiError extends Error {
+  status: number
+  code?: string
+  constructor(message: string, status: number, code?: string) {
+    super(message)
+    this.name = "DriveApiError"
+    this.status = status
+    this.code = code
+  }
+}
+
 interface GoogleIdentityGlobal {
   google?: {
     accounts?: {
@@ -16,9 +28,13 @@ interface GoogleIdentityGlobal {
         initTokenClient: (config: {
           client_id: string
           scope: string
+          hint?: string
           callback: (response: DriveTokenResponse) => void
         }) => {
-          requestAccessToken: (overrideConfig?: { prompt?: string }) => void
+          requestAccessToken: (overrideConfig?: {
+            prompt?: string
+            hint?: string
+          }) => void
         }
       }
     }
@@ -70,6 +86,7 @@ export function loadGsiClientScript(): Promise<void> {
 export async function getGoogleAccessToken(options?: {
   prompt?: "" | "consent" | "select_account"
   forceRefresh?: boolean
+  hint?: string
 }): Promise<string> {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
   if (!clientId) {
@@ -99,13 +116,16 @@ export async function getGoogleAccessToken(options?: {
         client_id: clientId,
         scope:
           "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly",
+        hint: options?.hint,
         callback: (response: DriveTokenResponse) => {
           if (response.error) {
             reject(
-              new Error(
+              new DriveApiError(
                 response.error_description ||
                   response.error ||
-                  "Google authorization failed"
+                  "Google authorization failed",
+                401,
+                response.error
               )
             )
             return
@@ -118,7 +138,10 @@ export async function getGoogleAccessToken(options?: {
         },
       })
 
-      client.requestAccessToken({ prompt: options?.prompt || "" })
+      client.requestAccessToken({
+        prompt: options?.prompt !== undefined ? options.prompt : "",
+        hint: options?.hint,
+      })
     } catch (err) {
       reject(err)
     }
@@ -137,25 +160,31 @@ export function setCachedGoogleAccessToken(
 }
 
 /**
- * Download a file binary from Google Drive via fileId.
+ * Download a file binary from Google Drive via fileId, supporting Drive Resource Keys.
  */
 export async function downloadDriveFile(
   fileId: string,
-  accessToken: string
+  accessToken: string,
+  resourceKey?: string
 ): Promise<ArrayBuffer> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+  }
+
+  if (resourceKey) {
+    headers["X-Goog-Drive-Resource-Keys"] = `${fileId}/${resourceKey}`
+  }
+
   const res = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
+    { headers }
   )
 
   if (!res.ok) {
     const errorMsg = await res.text().catch(() => "")
-    throw new Error(
-      `Drive fetch failed (${res.status}): ${errorMsg || res.statusText}`
+    throw new DriveApiError(
+      errorMsg || `Drive fetch failed with status ${res.status}`,
+      res.status
     )
   }
 
@@ -171,25 +200,31 @@ export interface DriveFileMetadata {
 }
 
 /**
- * Fetch metadata for a file in Google Drive (including trash status).
+ * Fetch metadata for a file in Google Drive (including trash status and resource keys).
  */
 export async function getDriveFileMetadata(
   fileId: string,
-  accessToken: string
+  accessToken: string,
+  resourceKey?: string
 ): Promise<DriveFileMetadata> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+  }
+
+  if (resourceKey) {
+    headers["X-Goog-Drive-Resource-Keys"] = `${fileId}/${resourceKey}`
+  }
+
   const res = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,trashed,explicitlyTrashed`,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
+    { headers }
   )
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "")
-    throw new Error(
-      `Failed to get file metadata (${res.status}): ${errorText || res.statusText}`
+    throw new DriveApiError(
+      errorText || `Failed to get file metadata with status ${res.status}`,
+      res.status
     )
   }
 
@@ -197,14 +232,16 @@ export async function getDriveFileMetadata(
 }
 
 /**
- * Save file to Google Drive (create new or update existing file).
+ * Save file to Google Drive (create new or update existing file), supporting folder resource keys.
  */
 export async function saveToDrive(
   content: Blob,
   fileName: string,
   accessToken: string,
   existingFileId?: string,
-  parentFolderId?: string
+  parentFolderId?: string,
+  folderResourceKey?: string,
+  fileResourceKey?: string
 ): Promise<{ id: string; name: string; [key: string]: unknown }> {
   const cleanName = fileName.endsWith(".silic") ? fileName : `${fileName}.silic`
 
@@ -232,18 +269,27 @@ export async function saveToDrive(
     ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`
     : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`
 
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+  }
+
+  if (folderResourceKey && parentFolderId && parentFolderId !== "root") {
+    headers["X-Goog-Drive-Resource-Keys"] = `${parentFolderId}/${folderResourceKey}`
+  } else if (fileResourceKey && existingFileId) {
+    headers["X-Goog-Drive-Resource-Keys"] = `${existingFileId}/${fileResourceKey}`
+  }
+
   const res = await fetch(url, {
     method: existingFileId ? "PATCH" : "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers,
     body: form,
   })
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "")
-    throw new Error(
-      `Drive save failed (${res.status}): ${errorText || res.statusText}`
+    throw new DriveApiError(
+      errorText || `Drive save failed with status ${res.status}`,
+      res.status
     )
   }
 
@@ -276,15 +322,14 @@ export async function shareViewOnly(
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "")
-    throw new Error(
-      `Drive share failed (${res.status}): ${errorText || res.statusText}`
+    throw new DriveApiError(
+      errorText || `Drive share failed with status ${res.status}`,
+      res.status
     )
   }
 
   return res.json()
 }
-
-import { strToU8, zipSync, type Zippable } from "fflate"
 
 /**
  * Generate an empty .silic project archive in memory.
@@ -312,8 +357,18 @@ export function createEmptySilicBuffer(fileName: string = "Untitled"): ArrayBuff
 }
 
 export type DriveStateAction =
-  | { action: "open"; fileId: string }
-  | { action: "create"; folderId: string }
+  | {
+      action: "open"
+      fileId: string
+      resourceKey?: string
+      userId?: string
+    }
+  | {
+      action: "create"
+      folderId: string
+      folderResourceKey?: string
+      userId?: string
+    }
 
 /**
  * Check if the application was opened or created by Google Drive (via "Open with" or "New" action).
@@ -331,10 +386,22 @@ export function handleDriveState(): DriveStateAction | null {
       Array.isArray(parsed.ids) &&
       parsed.ids.length > 0
     ) {
-      return { action: "open", fileId: parsed.ids[0] }
+      const fileId = parsed.ids[0]
+      const resourceKey =
+        parsed.resourceKeys && typeof parsed.resourceKeys === "object"
+          ? parsed.resourceKeys[fileId]
+          : undefined
+      const userId = typeof parsed.userId === "string" ? parsed.userId : undefined
+      return { action: "open", fileId, resourceKey, userId }
     }
     if (parsed.action === "create") {
-      return { action: "create", folderId: parsed.folderId || "root" }
+      const folderId = parsed.folderId || "root"
+      const folderResourceKey =
+        typeof parsed.folderResourceKey === "string"
+          ? parsed.folderResourceKey
+          : undefined
+      const userId = typeof parsed.userId === "string" ? parsed.userId : undefined
+      return { action: "create", folderId, folderResourceKey, userId }
     }
     return null
   } catch {
