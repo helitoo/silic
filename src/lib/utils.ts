@@ -257,5 +257,50 @@ export async function deleteRecordFiles(
   }
 }
 
+/**
+ * Safely copy text to clipboard with automatic fallback and window focus handling.
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
+  // 1. Try modern navigator.clipboard with window.focus()
+  try {
+    if (typeof window !== "undefined") {
+      window.focus()
+    }
+    if (
+      typeof navigator !== "undefined" &&
+      navigator.clipboard &&
+      typeof navigator.clipboard.writeText === "function" &&
+      window.isSecureContext
+    ) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch (err) {
+    console.warn(
+      "navigator.clipboard.writeText failed, trying execCommand fallback:",
+      err
+    )
+  }
 
-
+  // 2. Fallback: document.execCommand('copy') with off-screen textarea
+  try {
+    if (typeof document === "undefined") return false
+    const textArea = document.createElement("textarea")
+    textArea.value = text
+    textArea.setAttribute("readonly", "")
+    textArea.style.position = "fixed"
+    textArea.style.left = "-9999px"
+    textArea.style.top = "-9999px"
+    textArea.style.opacity = "0"
+    textArea.style.pointerEvents = "none"
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    const successful = document.execCommand("copy")
+    document.body.removeChild(textArea)
+    return successful
+  } catch (err) {
+    console.error("Fallback clipboard copy failed:", err)
+    return false
+  }
+}

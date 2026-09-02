@@ -8,7 +8,9 @@
     "searchPath": "Đường đi",
     "new": "Tạo mới",
     "uploadDevice": "Tải lên từ thiết bị",
-    "openDrive": "Mở từ Google Drive",
+    "openDrive": "Mở từ Drive",
+    "saveDrive": "Lưu vào Drive",
+    "saveAsDrive": "Lưu mới vào Drive",
     "share": "Chia sẻ",
     "save": "Lưu",
     "clear": "Dọn sạch",
@@ -581,5 +583,27 @@
     "quotaExceededTitle": "Bộ nhớ trình duyệt đã đầy",
     "quotaExceededDesc": "Dung lượng lưu trữ của trình duyệt (IndexedDB) không đủ để lưu thêm tệp này. Bạn có thể tải file .silic về máy để lưu trữ hoặc xóa bớt các tệp không cần thiết.",
     "orphansCleaned": "Đã tự động dọn dẹp {{count}} tệp không còn sử dụng để giải phóng dung lượng."
+  },
+  "googleDrive": {
+    "openSuccess": "Đã mở tệp từ Google Drive",
+    "openError": "Không thể mở tệp từ Google Drive",
+    "saveSuccess": "Đã lưu vào Google Drive",
+    "saveAsSuccess": "Đã tạo và lưu tệp mới trên Google Drive",
+    "saveError": "Lưu vào Google Drive thất bại",
+    "shareSuccess": "Đã sao chép liên kết chia sẻ",
+    "shareSuccessDesc": "Bất kỳ ai có liên kết đều có thể xem tệp này (Chỉ xem).",
+    "shareCreated": "Đã tạo liên kết chia sẻ",
+    "shareError": "Không thể chia sẻ tệp Google Drive",
+    "opening": "Đang tải tệp từ Google Drive...",
+    "saving": "Đang lưu vào Google Drive...",
+    "savingBeforeShare": "Đang lưu lên Google Drive trước khi chia sẻ...",
+    "sharing": "Đang chuẩn bị chia sẻ...",
+    "configuringPermissions": "Đang thiết lập quyền chia sẻ...",
+    "connectedTooltip": "Đã liên kết với Google Drive (Nhấp để mở trên Drive)",
+    "notConnectedTooltip": "Lưu tệp vào Google Drive",
+    "syncing": "Đang đồng bộ với Google Drive...",
+    "trashedError": "Tệp đã bị chuyển vào thùng rác trên Google Drive",
+    "fileTrashedTitle": "Tệp trên Drive đã bị xóa",
+    "fileTrashedSaveDesc": "Tệp trên Google Drive hiện đang ở trong thùng rác. Vui lòng chọn vị trí lưu mới."
   }
 }

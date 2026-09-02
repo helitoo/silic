@@ -14,11 +14,11 @@ export function App() {
   return (
     <LangProvider>
       <RouterProvider>
-        <GoogleDrivePickerProvider>
-          <TemplateProvider>
-            <ConnectionProvider>
-              <EntityProvider>
-                <ProjectStorageProvider>
+        <TemplateProvider>
+          <ConnectionProvider>
+            <EntityProvider>
+              <ProjectStorageProvider>
+                <GoogleDrivePickerProvider>
                   <QueryProvider>
                     <AnalysisProvider>
                       <LongTextEditorProvider>
@@ -26,11 +26,11 @@ export function App() {
                       </LongTextEditorProvider>
                     </AnalysisProvider>
                   </QueryProvider>
-                </ProjectStorageProvider>
-              </EntityProvider>
-            </ConnectionProvider>
-          </TemplateProvider>
-        </GoogleDrivePickerProvider>
+                </GoogleDrivePickerProvider>
+              </ProjectStorageProvider>
+            </EntityProvider>
+          </ConnectionProvider>
+        </TemplateProvider>
       </RouterProvider>
     </LangProvider>
   )

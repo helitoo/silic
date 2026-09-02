@@ -16,6 +16,7 @@ export interface StoredAppState {
   connections: Connection[]
   templates: Template[]
   attachments: AttachmentMeta[]
+  driveFileId?: string
   updatedAt: string
 }
 

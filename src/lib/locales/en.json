@@ -8,7 +8,9 @@
     "searchPath": "Path",
     "new": "New",
     "uploadDevice": "Upload from device",
-    "openDrive": "Open from Google Drive",
+    "openDrive": "Open from Drive",
+    "saveDrive": "Save to Drive",
+    "saveAsDrive": "Save as new to Drive",
     "share": "Share",
     "save": "Save",
     "clear": "Clear all",
@@ -581,5 +583,27 @@
     "quotaExceededTitle": "Storage Quota Exceeded",
     "quotaExceededDesc": "Browser storage (IndexedDB) does not have enough space to save this file. You can export your project to a .silic file or remove unused assets.",
     "orphansCleaned": "Automatically cleaned up {{count}} unreferenced files to free storage."
+  },
+  "googleDrive": {
+    "openSuccess": "Opened file from Google Drive",
+    "openError": "Failed to open file from Google Drive",
+    "saveSuccess": "Saved to Google Drive",
+    "saveAsSuccess": "Created and saved new file to Google Drive",
+    "saveError": "Failed to save to Google Drive",
+    "shareSuccess": "Share link copied",
+    "shareSuccessDesc": "Anyone with the link can view this file (View-only).",
+    "shareCreated": "Share link created",
+    "shareError": "Failed to share Google Drive file",
+    "opening": "Loading file from Google Drive...",
+    "saving": "Saving to Google Drive...",
+    "savingBeforeShare": "Saving to Google Drive before sharing...",
+    "sharing": "Preparing to share...",
+    "configuringPermissions": "Configuring share permissions...",
+    "connectedTooltip": "Connected to Google Drive (Click to view on Drive)",
+    "notConnectedTooltip": "Save file to Google Drive",
+    "syncing": "Syncing with Google Drive...",
+    "trashedError": "File has been moved to trash on Google Drive",
+    "fileTrashedTitle": "File on Drive is trashed",
+    "fileTrashedSaveDesc": "The file on Google Drive is in trash. Please choose a new location to save."
   }
 }

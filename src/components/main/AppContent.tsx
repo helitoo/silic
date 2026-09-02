@@ -41,7 +41,8 @@ export default function AppContent() {
   const { t } = useLang()
   const { route, tab, navigateTab, navigate, goBack } = useRouter()
   const { entities } = useEntity()
-  const { handleOpenPicker } = useGoogleDrivePicker()
+  const { handleOpenPicker, handleSaveToDrive, handleShareDrive } =
+    useGoogleDrivePicker()
   const {
     fileName,
     exportProjectSilic,
@@ -71,6 +72,9 @@ export default function AppContent() {
   const actions: NavItemActions = useMemo(
     () => ({
       onOpenDrive: handleOpenPicker,
+      onSaveDrive: () => handleSaveToDrive(false),
+      onSaveAsDrive: () => handleSaveToDrive(true),
+      onShareDrive: handleShareDrive,
       onUploadDevice: handleUploadSilic,
       onDownload: handleDownloadSilic,
       onNewProject: () => setIsNewAlertOpen(true),
@@ -81,6 +85,8 @@ export default function AppContent() {
     }),
     [
       handleOpenPicker,
+      handleSaveToDrive,
+      handleShareDrive,
       handleUploadSilic,
       handleDownloadSilic,
       openEntityQuery,

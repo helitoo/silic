@@ -1,5 +1,40 @@
 import * as React from "react"
-import { ArrowDownToLine, ArrowRight } from "lucide-react"
+import { ArrowDownToLine, ArrowRight, CloudUpload, Loader2 } from "lucide-react"
+
+function GoogleDriveIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 87.3 78"
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z"
+        fill="#0066da"
+      />
+      <path
+        d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z"
+        fill="#00ac47"
+      />
+      <path
+        d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z"
+        fill="#ea4335"
+      />
+      <path
+        d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z"
+        fill="#00832d"
+      />
+      <path
+        d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z"
+        fill="#2684fc"
+      />
+      <path
+        d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z"
+        fill="#ffba00"
+      />
+    </svg>
+  )
+}
 
 import {
   NavigationMenu,
@@ -44,7 +79,13 @@ import {
 export default function Navbar() {
   const { t } = useLang()
   const { pathname, route, navigate } = useRouter()
-  const { handleOpenPicker } = useGoogleDrivePicker()
+  const {
+    handleOpenPicker,
+    handleSaveToDrive,
+    handleShareDrive,
+    driveFileId,
+    isDriveLoading,
+  } = useGoogleDrivePicker()
   const {
     fileName,
     setFileName,
@@ -110,23 +151,55 @@ export default function Navbar() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMod = e.metaKey || e.ctrlKey
 
-      if (isMod && (e.key.toLowerCase() === "o" || e.code === "KeyO")) {
+      if (
+        isMod &&
+        e.shiftKey &&
+        (e.key.toLowerCase() === "o" || e.code === "KeyO")
+      ) {
         e.preventDefault()
         e.stopPropagation()
-        // handleOpenPicker()
-      } else if (isMod && (e.key.toLowerCase() === "u" || e.code === "KeyU")) {
+        handleOpenPicker()
+      } else if (
+        isMod &&
+        e.shiftKey &&
+        (e.key.toLowerCase() === "s" || e.code === "KeyS")
+      ) {
+        e.preventDefault()
+        e.stopPropagation()
+        handleSaveToDrive(true)
+      } else if (
+        isMod &&
+        !e.shiftKey &&
+        (e.key.toLowerCase() === "s" || e.code === "KeyS")
+      ) {
+        e.preventDefault()
+        e.stopPropagation()
+        handleSaveToDrive(false)
+      } else if (
+        isMod &&
+        (e.key.toLowerCase() === "u" || e.code === "KeyU")
+      ) {
         e.preventDefault()
         e.stopPropagation()
         handleUploadSilic()
-      } else if (isMod && (e.key.toLowerCase() === "d" || e.code === "KeyD")) {
+      } else if (
+        isMod &&
+        (e.key.toLowerCase() === "d" || e.code === "KeyD")
+      ) {
         e.preventDefault()
         e.stopPropagation()
         handleDownloadSilic()
-      } else if (isMod && (e.key.toLowerCase() === "n" || e.code === "KeyN")) {
+      } else if (
+        isMod &&
+        (e.key.toLowerCase() === "n" || e.code === "KeyN")
+      ) {
         e.preventDefault()
         e.stopPropagation()
         setIsNewAlertOpen(true)
-      } else if (isMod && (e.key.toLowerCase() === "q" || e.code === "KeyQ")) {
+      } else if (
+        isMod &&
+        (e.key.toLowerCase() === "q" || e.code === "KeyQ")
+      ) {
         e.preventDefault()
         e.stopPropagation()
         if (e.shiftKey) {
@@ -148,6 +221,8 @@ export default function Navbar() {
     return () =>
       window.removeEventListener("keydown", handleKeyDown, { capture: true })
   }, [
+    handleOpenPicker,
+    handleSaveToDrive,
     handleUploadSilic,
     handleDownloadSilic,
     openEntityQuery,
@@ -159,6 +234,9 @@ export default function Navbar() {
   const actions: NavItemActions = React.useMemo(
     () => ({
       onOpenDrive: handleOpenPicker,
+      onSaveDrive: () => handleSaveToDrive(false),
+      onSaveAsDrive: () => handleSaveToDrive(true),
+      onShareDrive: handleShareDrive,
       onUploadDevice: handleUploadSilic,
       onDownload: handleDownloadSilic,
       onNewProject: () => setIsNewAlertOpen(true),
@@ -169,6 +247,8 @@ export default function Navbar() {
     }),
     [
       handleOpenPicker,
+      handleSaveToDrive,
+      handleShareDrive,
       handleUploadSilic,
       handleDownloadSilic,
       openEntityQuery,
@@ -282,7 +362,7 @@ export default function Navbar() {
     <header className="sticky top-0 z-40 w-full border-b border-border/50 bg-background/95 shadow-xs backdrop-blur-md">
       {/* 1. Mobile Layout (< sm): No Logo, SidebarTrigger at far left, 2 rows */}
       <div className="flex flex-col gap-1.5 px-2.5 py-1.5 sm:hidden">
-        {/* Row 1: Sidebar Trigger + File Name Input + LangButton */}
+        {/* Row 1: Sidebar Trigger + File Name Input + Drive Status Icon */}
         <div className="flex w-full items-center gap-1.5">
           <SidebarTrigger className="size-7.5 shrink-0 rounded-md" />
           <input
@@ -294,6 +374,41 @@ export default function Navbar() {
             title="Rename document"
             spellCheck={false}
           />
+          {/* Drive Status Icon */}
+          {isDriveLoading ? (
+            <div
+              className="flex size-7 shrink-0 items-center justify-center rounded text-primary"
+              title={t("googleDrive.syncing") || "Đang đồng bộ..."}
+            >
+              <Loader2 className="size-4 animate-spin" />
+            </div>
+          ) : driveFileId ? (
+            <a
+              href={`https://drive.google.com/file/d/${driveFileId}/view`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group relative flex size-7 shrink-0 items-center justify-center rounded-md transition-all hover:bg-muted/80 focus-visible:ring-1 focus-visible:ring-primary focus-visible:outline-none"
+              title={
+                t("googleDrive.connectedTooltip") ||
+                "Đã liên kết với Google Drive (Nhấp để mở trên Drive)"
+              }
+            >
+              <GoogleDriveIcon className="size-4 transition-transform group-hover:scale-110" />
+              <span className="absolute bottom-1 right-1 size-1.5 rounded-full bg-emerald-500 ring-1 ring-background" />
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleSaveToDrive(false)}
+              className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted/80 hover:text-foreground focus-visible:ring-1 focus-visible:ring-primary focus-visible:outline-none"
+              title={
+                t("googleDrive.notConnectedTooltip") ||
+                "Lưu tệp vào Google Drive"
+              }
+            >
+              <CloudUpload className="size-4" />
+            </button>
+          )}
         </div>
 
         {/* Row 2: Tabs List (horizontal scrollable) */}
@@ -348,16 +463,56 @@ export default function Navbar() {
 
           {/* 2. Middle: 2 Rows Layout (All Left-Aligned) */}
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-            {/* Row 1: Document Name & Extension */}
-            <input
-              type="text"
-              value={fileName}
-              onChange={(e) => setFileName(e.target.value)}
-              placeholder="Project file name"
-              className="h-7 w-36 max-w-[280px] truncate rounded border border-transparent px-2 text-sm font-semibold tracking-tight text-foreground transition-all hover:border-border/80 focus:border-primary focus:bg-background focus:ring-1 focus:ring-primary/20 focus:outline-none sm:w-56 sm:text-base"
-              title="Rename document"
-              spellCheck={false}
-            />
+            {/* Row 1: Document Name & Drive Status Icon */}
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={fileName}
+                onChange={(e) => setFileName(e.target.value)}
+                placeholder="Project file name"
+                className="h-7 w-36 max-w-[280px] truncate rounded border border-transparent px-2 text-sm font-semibold tracking-tight text-foreground transition-all hover:border-border/80 focus:border-primary focus:bg-background focus:ring-1 focus:ring-primary/20 focus:outline-none sm:w-56 sm:text-base"
+                title="Rename document"
+                spellCheck={false}
+              />
+              {/* Drive Status Icon */}
+              {isDriveLoading ? (
+                <div
+                  className="flex size-6 shrink-0 items-center justify-center rounded text-primary"
+                  title={
+                    t("googleDrive.syncing") ||
+                    "Đang đồng bộ với Google Drive..."
+                  }
+                >
+                  <Loader2 className="size-3.5 animate-spin sm:size-4" />
+                </div>
+              ) : driveFileId ? (
+                <a
+                  href={`https://drive.google.com/file/d/${driveFileId}/view`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group relative flex size-6 shrink-0 items-center justify-center rounded-md transition-all hover:bg-muted/80 focus-visible:ring-1 focus-visible:ring-primary focus-visible:outline-none"
+                  title={
+                    t("googleDrive.connectedTooltip") ||
+                    "Đã liên kết với Google Drive (Nhấp để mở trên Drive)"
+                  }
+                >
+                  <GoogleDriveIcon className="size-3.5 transition-transform group-hover:scale-110 sm:size-4" />
+                  <span className="absolute -bottom-0.5 -right-0.5 size-1.5 rounded-full bg-emerald-500 ring-1 ring-background" />
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleSaveToDrive(false)}
+                  className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted/80 hover:text-foreground focus-visible:ring-1 focus-visible:ring-primary focus-visible:outline-none"
+                  title={
+                    t("googleDrive.notConnectedTooltip") ||
+                    "Lưu tệp vào Google Drive"
+                  }
+                >
+                  <CloudUpload className="size-3.5 sm:size-4" />
+                </button>
+              )}
+            </div>
 
             {/* Row 2: Menu Options Bar (Google Docs style) */}
             <div className="flex items-center">

@@ -3,12 +3,16 @@ import {
   BarChart3,
   CircleQuestionMark,
   Compass,
+  CopyPlus,
   Download,
   FileCode2,
+  FolderOpen,
   HardDrive,
   Plus,
   ReceiptText,
   Route,
+  Save,
+  Share2,
   ShieldLock,
   Trash2,
   Upload,
@@ -17,6 +21,9 @@ import {
 
 export interface NavItemActions {
   onOpenDrive?: () => void
+  onSaveDrive?: () => void
+  onSaveAsDrive?: () => void
+  onShareDrive?: () => void
   onNewProject?: () => void
   onUploadDevice?: () => void
   onDownload?: () => void
@@ -54,6 +61,36 @@ export function getNavItems(
           kbd: "⌘ N",
           kdb: "⌘ N",
           onClick: actions?.onNewProject,
+        },
+        {
+          id: "openDrive",
+          icon: FolderOpen,
+          label: t("navbar.openDrive") || "Mở từ Drive",
+          kbd: "⌘ ⇧ O",
+          kdb: "⌘ ⇧ O",
+          onClick: actions?.onOpenDrive,
+        },
+        {
+          id: "saveDrive",
+          icon: Save,
+          label: t("navbar.saveDrive") || "Lưu vào Drive",
+          kbd: "⌘ S",
+          kdb: "⌘ S",
+          onClick: actions?.onSaveDrive,
+        },
+        {
+          id: "saveAsDrive",
+          icon: CopyPlus,
+          label: t("navbar.saveAsDrive") || "Lưu mới vào Drive",
+          kbd: "⌘ ⇧ S",
+          kdb: "⌘ ⇧ S",
+          onClick: actions?.onSaveAsDrive,
+        },
+        {
+          id: "shareDrive",
+          icon: Share2,
+          label: t("navbar.share") || "Chia sẻ",
+          onClick: actions?.onShareDrive,
         },
         {
           id: "uploadDevice",

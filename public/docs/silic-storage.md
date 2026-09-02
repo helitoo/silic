@@ -35,8 +35,9 @@ Silic provides an entirely client-side storage ecosystem (Client-side Execution)
 └───────────────────┬────────────────────┘
                     │
 ┌───────────────────▼────────────────────┐
-│        External / Export Layer         │
-│ └── Project Archive .silic (ZIP)       │
+│        External & Cloud Layer          │
+│ ├── Local Project Archive .silic (ZIP) │
+│ └── Google Drive Cloud Sync (REST v3)  │
 └────────────────────────────────────────┘
 ```
 
@@ -68,6 +69,8 @@ The central context managing current project state, automatic synchronization wi
 | :----------------------- | :---------------------------------------- | :----------------------------------------------------------------------------------------------------------- |
 | `fileName`               | `string`                                  | Current project name (displayed in title bar and used as export filename).                                  |
 | `setFileName`            | `(name: string) => void`                  | Updates the project name.                                                                                    |
+| `driveFileId`            | `string \| null`                          | Current Google Drive file ID associated with the workspace (null if local-only).                             |
+| `setDriveFileId`         | `(id: string \| null) => void`            | Updates the active Google Drive file ID.                                                                     |
 | `attachments`            | `AttachmentMeta[]`                        | List of metadata for all attachments in the project (`{ id, mimeType, size, caption }`).                    |
 | `addAttachment`          | `(file: File, customId?: string, caption?: string) => Promise<AttachmentMeta>` | Saves file to IndexedDB, generates attachment metadata with default caption set to file name (or ID fallback). |
 | `updateAttachmentCaption`| `(id: string, caption: string) => Promise<void>` | Updates the caption for an attachment in IndexedDB and React state.                                         |
@@ -75,7 +78,8 @@ The central context managing current project state, automatic synchronization wi
 | `duplicateFile` / `duplicateAttachment` | `(oldId: string, customId?: string, caption?: string) => Promise<AttachmentMeta \| null>` | Clones an attachment's binary Blob in IndexedDB with a new UUID and registers duplicate metadata.            |
 | `cleanupOrphanedAttachments` | `() => Promise<number>`                   | Scans and purges any binary files in IndexedDB not referenced by any entity or connection.                    |
 | `exportProjectSilic`     | `(customName?: string) => Promise<void>`  | Packages all project state and attachments into a `.silic` file and downloads it.                            |
-| `importProjectSilic`     | `(file: File) => Promise<void>`           | Unpacks `.silic` file, reloads entities, connections, templates, and overwrites attachments in IndexedDB.    |
+| `generateSilicZipBuffer` | `(customName?: string) => Promise<{ buffer: ArrayBuffer; fileName: string }>` | Packages the workspace into a `.silic` ZIP buffer for downloads or Google Drive uploads.     |
+| `importProjectSilic`     | `(file: File, newDriveFileId?: string \| null) => Promise<void>` | Unpacks `.silic` file, reloads entities, connections, templates, and overwrites attachments in IndexedDB.    |
 | `newProject`             | `() => Promise<void>`                     | Creates a new project, clearing all data and resetting state to a blank canvas.                              |
 | `clearProject`           | `() => Promise<void>`                     | Wipes all data in IndexedDB (`app-state` & `attachments`), deletes form drafts, and resets state.            |
 | `showLoading`            | `(message?: string) => void`              | Displays an interaction-blocking loading modal during heavy I/O operations.                                  |
@@ -90,7 +94,7 @@ Powered by the `idb` library (Promise-based IndexedDB wrapper). The database is 
 
 1. **Store `app-state`** (`keyPath: "key"`):
    - Key: `"current-project"`
-   - Value: `StoredAppState` containing `{ key, fileName, entities, connections, templates, attachments, updatedAt }`.
+   - Value: `StoredAppState` containing `{ key, fileName, entities, connections, templates, attachments, driveFileId, updatedAt }`.
 2. **Store `attachments`** (`keyPath: "id"`):
    - Key: `id` (UUID string).
    - Value: `StoredAttachment` containing `{ id, mimeType, size, blob, caption }`.
@@ -119,6 +123,20 @@ Hook for seamlessly resolving between external URLs and local internal attachmen
 
 - **External URL (`http://`, `https://`, `data:`, `blob:`)**: Returns the URL directly without querying IndexedDB.
 - **Attachment ID (UUID)**: Fetches the Blob from IndexedDB via `getAttachment(id)`, initializes `URL.createObjectURL(blob)`, and automatically cleans up via `URL.revokeObjectURL(url)` on component unmount to prevent memory leaks.
+
+---
+
+### 2.4. Google Drive Cloud Context & Helpers (`GoogleDrivePickerContext.tsx` & `googleDrive.ts`)
+
+Central coordinator for Google Drive cloud synchronization, picker file browsing, OAuth token caching, and permissions management:
+
+| Property / Method | Type / Signature | Description |
+| :----------------------- | :---------------------------------------- | :----------------------------------------------------------------------------------------------------------- |
+| `handleOpenPicker`       | `(viewId?: ViewIdOptions, ...) => void`   | Launches the Google Drive Picker dialog, downloads the selected `.silic` file binary, and imports it.       |
+| `handleSaveToDrive`      | `(isSaveAs?: boolean) => Promise<void>`   | Serializes project state and performs a `PATCH` (update) or `POST` (create new) multipart upload to Drive.  |
+| `handleShareDrive`       | `() => Promise<void>`                     | Grants public view-only reader permission on Google Drive and copies the shareable URL to clipboard.        |
+| `driveFileId`            | `string \| null`                          | Current Google Drive file ID.                                                                                |
+| `isDriveLoading`         | `boolean`                                 | Loading state indicating ongoing Google Drive network requests.                                              |
 
 ---
 
@@ -326,10 +344,16 @@ React.useEffect(() => {
 Standard keyboard shortcuts (using `⌘` on macOS or `Ctrl` on Windows/Linux) are listened to globally in `Navbar.tsx`:
 
 | Shortcut | Action | Handler Function |
-| :--------------- | :--------------------------------- | :-------------------------------------------------------- |
-| `⌘ N` / `Ctrl N` | Create new project (Blank canvas) | `newProject()` |
-| `⌘ U` / `Ctrl U` | Upload `.silic` project from disk | `uploadSingleFile()` → `importProjectSilic()` |
-| `⌘ D` / `Ctrl D` | Export and download `.silic` file | `exportProjectSilic()` |
+| :------------------------- | :--------------------------------- | :-------------------------------------------------------- |
+| `⌘ N` / `Ctrl N`           | Create new project (Blank canvas) | `newProject()` |
+| `⌘ ⇧ O` / `Ctrl Shift O`   | Open project from Google Drive     | `handleOpenPicker()` |
+| `⌘ S` / `Ctrl S`           | Save project to Google Drive       | `handleSaveToDrive(false)` |
+| `⌘ ⇧ S` / `Ctrl Shift S`   | Save as new copy to Google Drive   | `handleSaveToDrive(true)` |
+| `⌘ U` / `Ctrl U`           | Upload `.silic` project from disk | `uploadSingleFile()` → `importProjectSilic()` |
+| `⌘ D` / `Ctrl D`           | Export and download `.silic` file | `exportProjectSilic()` |
+| `⌘ Q` / `Ctrl Q`           | Open Entity Query Sheet            | `openEntityQuery()` |
+| `⌘ ⇧ Q` / `Ctrl Shift Q`   | Open Path Query Sheet              | `openPathQuery()` |
+| `⌘ ⇧ K` / `Ctrl Shift K`   | Open Analysis Page                 | `openAnalysis()` |
 
 ---
 
@@ -627,5 +651,218 @@ sequenceDiagram
         end
     end
 ```
+
+---
+
+## 11. Google Drive Cloud Integration & Synchronization Flows
+
+Silic offers seamless cloud synchronization with Google Drive without requiring any custom backend infrastructure (100% Client-Side Architecture). All interactions utilize official Google Identity Services (GIS) OAuth 2.0 with the secure `https://www.googleapis.com/auth/drive.file` and `https://www.googleapis.com/auth/drive.readonly` scopes.
+
+### 11.1. Architecture & Privacy Principles
+
+1. **Least Privilege Scope (`drive.file`)**: The app only requests access to files that were opened via the Google Drive Picker or created by Silic itself. It cannot read or modify any other files on the user's Google Drive.
+2. **Zero-Backend Architecture**: OAuth token acquisition, multipart file uploads, binary downloads, and permission management execute entirely inside the user's browser.
+3. **Drive File Identity Binding (`driveFileId`)**: When a project is opened from or saved to Google Drive, its unique Google Drive `fileId` is bound to the workspace state and persisted in IndexedDB `app-state`.
+4. **Active Trash Status Detection (`trashed` & `explicitlyTrashed`)**:
+   - Google Drive API v3 resource `files` contains boolean flags: `trashed` (file is in trash, either directly or cascaded from parent folder) and `explicitlyTrashed` (file was directly trashed).
+   - Silic always verifies `fields=id,name,mimeType,trashed,explicitlyTrashed` prior to downloading (`files.get?alt=media`) or updating (`files.update`).
+   - If a file is detected as trashed, Silic immediately **unlinks the Google Drive identity (`driveFileId = null`)**, halts download or falls back to folder selection, and notifies the user with a clear warning Toast.
+
+---
+
+### 11.2. Flow 1: Open from Google Drive (Picker API)
+
+This flow is triggered when the user clicks **"Open from Drive"** (`⌘ ⇧ O` / `Ctrl Shift O`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User
+    participant Navbar as Navbar (⌘ ⇧ O)
+    participant DriveCtx as GoogleDrivePickerContext
+    participant Picker as Google Drive Picker API
+    participant DriveAPI as Google Drive API v3
+    participant StorageCtx as ProjectStorageContext
+    participant Worker as Web Worker (zipWorker.ts)
+    participant IDB as IndexedDB (silic-db)
+
+    User->>Navbar: Press ⌘ ⇧ O / Click "Open from Drive"
+    Navbar->>DriveCtx: handleOpenPicker()
+    DriveCtx->>Picker: openPicker({ customScopes: ["drive.file"], setOrigin: ... })
+    Picker->>User: Display Google Drive Picker modal
+    User->>Picker: Select target .silic file
+    Picker-->>DriveCtx: callbackFunction({ action: "picked", docs: [{ id, name }] })
+
+    DriveCtx->>DriveCtx: showLoading("Loading file from Google Drive...")
+    DriveCtx->>DriveAPI: fetch("https://www.googleapis.com/drive/v3/files/{fileId}?alt=media", { Authorization: Bearer token })
+    DriveAPI-->>DriveCtx: Return binary ArrayBuffer
+
+    DriveCtx->>StorageCtx: importProjectSilic(new File([buffer], name), fileId)
+    StorageCtx->>Worker: postMessage({ action: "import", buffer }, [buffer])
+    Worker->>Worker: fflate.unzipSync()
+    Worker-->>StorageCtx: Return { manifestJson, entitiesJson, connectionsJson, templatesJson, attachments }
+    Worker->>Worker: worker.terminate()
+
+    StorageCtx->>IDB: clearAllAttachments()
+    loop Store all extracted attachments
+        StorageCtx->>IDB: saveAttachment({ id, mimeType, size, blob })
+    end
+
+    StorageCtx->>StorageCtx: setFileName, setEntities, setConnections, setTemplates, setDriveFileId(fileId)
+    StorageCtx->>IDB: saveAppState({ driveFileId, ... })
+    DriveCtx->>DriveCtx: hideLoading()
+    DriveCtx->>User: Display success Toast notification
+```
+
+#### Detailed Processing Steps:
+1. **Picker Invocation**: Google Drive Picker is displayed with the user's authenticated Google Account.
+2. **Media Stream Download**: Fetches binary bytes via `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`.
+3. **Web Worker Unpack**: The downloaded `ArrayBuffer` is passed to `zipWorker.ts` to extract JSON datasets and binary attachments without blocking the main UI thread.
+4. **State & Database Sync**: Restores the knowledge graph, saves attachments to IndexedDB, binds the `driveFileId`, and updates the UI.
+
+---
+
+### 11.3. Flow 2: Save & Save As to Google Drive (Multipart Upload & Location Selection)
+
+- **Save (`⌘ S` / `Ctrl S`)**:
+  - **With `driveFileId` (Already linked to Drive)**: Directly executes an HTTP `PATCH` multipart upload request to update the existing file in-place (`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=multipart`) without opening any dialog.
+  - **Without `driveFileId` (Local-only document)**: Automatically opens the Google Drive Picker (`viewId: "FOLDERS"`) so the user can choose the destination folder on Google Drive. Once selected, uploads the `.silic` archive via `POST` multipart upload into the chosen folder and stores the new `driveFileId`.
+- **Save As (`⌘ ⇧ S` / `Ctrl Shift S`)**:
+  - **Always opens Google Drive Picker (`viewId: "FOLDERS"`)**: Regardless of current `driveFileId`, prompts the user to select a destination folder (or overwrite target), exports the current project, uploads as a new file on Google Drive via `POST` multipart upload, and switches `driveFileId` to the newly created file.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User
+    participant Navbar as Navbar (⌘ S / ⌘ ⇧ S)
+    participant DriveCtx as GoogleDrivePickerContext
+    participant Picker as Google Drive Picker API (FOLDERS)
+    participant StorageCtx as ProjectStorageContext
+    participant Worker as Web Worker (zipWorker.ts)
+    participant DriveAPI as Google Drive API v3 (Multipart)
+    participant IDB as IndexedDB (silic-db)
+
+    User->>Navbar: Press ⌘ S (Save) or ⌘ ⇧ S (Save As)
+    Navbar->>DriveCtx: handleSaveToDrive(isSaveAs)
+
+    alt Direct Save (!isSaveAs & driveFileId exists)
+        DriveCtx->>DriveCtx: showLoading("Saving to Google Drive...")
+        DriveCtx->>DriveCtx: getGoogleAccessToken()
+        DriveCtx->>StorageCtx: generateSilicZipBuffer()
+        StorageCtx->>Worker: postMessage({ action: "export", ... })
+        Worker-->>StorageCtx: Return zipBuffer
+        StorageCtx-->>DriveCtx: Return { buffer, fileName }
+        DriveCtx->>DriveAPI: PATCH https://www.googleapis.com/upload/drive/v3/files/{driveFileId}?uploadType=multipart
+        DriveAPI-->>DriveCtx: Return { id, name } (In-place updated)
+        DriveCtx->>DriveCtx: hideLoading()
+        DriveCtx->>User: Display success Toast ("Saved to Google Drive")
+    else Save As (isSaveAs == true) OR First-Time Save (!driveFileId)
+        DriveCtx->>Picker: openPicker({ viewId: "FOLDERS", setSelectFolderEnabled: true, showUploadView: true })
+        Picker->>User: Display Google Drive Folder & Location Picker modal
+        User->>Picker: Select destination folder (or location)
+        Picker-->>DriveCtx: callbackFunction({ action: "picked", docs: [{ id: parentFolderId, ... }] })
+
+        DriveCtx->>DriveCtx: showLoading("Saving to Google Drive...")
+        DriveCtx->>DriveCtx: getGoogleAccessToken()
+        DriveCtx->>StorageCtx: generateSilicZipBuffer()
+        StorageCtx->>Worker: postMessage({ action: "export", ... })
+        Worker-->>StorageCtx: Return zipBuffer
+        StorageCtx-->>DriveCtx: Return { buffer, fileName }
+
+        DriveCtx->>DriveAPI: POST https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart<br/>(parents: [parentFolderId])
+        DriveAPI-->>DriveCtx: Return { id, name } (New file created in chosen folder)
+        DriveCtx->>StorageCtx: setDriveFileId(newId)
+        StorageCtx->>IDB: saveAppState({ driveFileId: newId, ... })
+        DriveCtx->>DriveCtx: hideLoading()
+        DriveCtx->>User: Display success Toast ("Saved to Google Drive" / "Saved new copy to Google Drive")
+    end
+```
+
+---
+
+### 11.4. Flow 3: View-Only File Sharing (Permissions API)
+
+This flow allows users to instantly share their project for view-only access without manual email permission management.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User
+    participant Navbar as Navbar (File -> Share)
+    participant DriveCtx as GoogleDrivePickerContext
+    participant StorageCtx as ProjectStorageContext
+    participant DriveAPI as Google Drive API v3
+    participant Clipboard as navigator.clipboard
+
+    User->>Navbar: Click "File" -> "Share"
+    Navbar->>DriveCtx: handleShareDrive()
+
+    opt Project not yet saved to Google Drive (!driveFileId)
+        DriveCtx->>DriveCtx: Auto-save project to Google Drive first (POST multipart)
+        DriveCtx->>StorageCtx: setDriveFileId(newFileId)
+    end
+
+    DriveCtx->>DriveCtx: showLoading("Configuring share permissions...")
+    DriveCtx->>DriveCtx: getGoogleAccessToken()
+
+    DriveCtx->>DriveAPI: POST https://www.googleapis.com/drive/v3/files/{fileId}/permissions<br/>Body: { role: "reader", type: "anyone" }
+    DriveAPI-->>DriveCtx: Return permission confirmation
+
+    DriveCtx->>DriveCtx: Construct shareUrl = "https://drive.google.com/file/d/{fileId}/view?usp=sharing"
+    DriveCtx->>Clipboard: writeText(shareUrl)
+    DriveCtx->>DriveCtx: hideLoading()
+    DriveCtx->>User: Display Toast: "Share link copied (View-only)"
+```
+
+#### Key Sharing Features:
+- **Zero Configuration**: Automatically sets `role: "reader"` and `type: "anyone"`, making the file accessible to anyone with the link.
+- **Auto-Upload Fallback**: If the user clicks Share on a local-only document, Silic automatically uploads it to Drive before creating the share link.
+- **Clipboard Integration**: Automatically copies the URL directly to the user's clipboard.
+
+---
+
+### 11.5. Flow 4: Google Drive "Open with Silic" Integration (App Startup State Parameter)
+
+When a user right-clicks a `.silic` file on Google Drive and selects **"Open with Silic"**, Google Drive launches the application URL with a serialized `state` query parameter:
+`https://silic.app/?state={"ids":["0B..."],"action":"open","userId":"..."}`
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Google Drive User
+    participant Browser as Browser Window
+    participant DriveCtx as GoogleDrivePickerContext (on mount)
+    participant DriveAPI as Google Drive API v3
+    participant StorageCtx as ProjectStorageContext
+    participant Worker as Web Worker (zipWorker.ts)
+    participant IDB as IndexedDB (silic-db)
+
+    User->>Browser: Click "Open with Silic" in Google Drive Web UI
+    Browser->>Browser: Navigate to https://silic.app/?state={"ids":["file123"],"action":"open"}
+    Browser->>DriveCtx: GoogleDrivePickerProvider mounts
+
+    DriveCtx->>DriveCtx: handleDriveOpenState() -> detects fileId = "file123"
+    DriveCtx->>Browser: window.history.replaceState() (Strip `state` param from URL)
+
+    DriveCtx->>DriveCtx: showLoading("Loading file from Google Drive...")
+    DriveCtx->>DriveCtx: getGoogleAccessToken() (Trigger GIS OAuth token request)
+    DriveCtx->>DriveAPI: fetch("https://www.googleapis.com/drive/v3/files/file123?alt=media")
+    DriveAPI-->>DriveCtx: Return binary ArrayBuffer
+
+    DriveCtx->>StorageCtx: importProjectSilic(new File([buffer], "drive-project.silic"), "file123")
+    StorageCtx->>Worker: postMessage({ action: "import", buffer })
+    Worker-->>StorageCtx: Return extracted datasets & attachments
+    StorageCtx->>IDB: Save attachments & App State
+    StorageCtx->>StorageCtx: setDriveFileId("file123")
+
+    DriveCtx->>DriveCtx: hideLoading()
+    DriveCtx->>User: Display success Toast: "Opened file from Google Drive"
+```
+
+#### Detailed Processing Steps:
+1. **URL Parameter Parsing (`handleDriveOpenState`)**: Extracts the `ids[0]` from the URL `state` JSON parameter.
+2. **URL Parameter Sanitization**: Invokes `history.replaceState` immediately to remove the `state` parameter from the address bar, preventing duplicate re-imports on browser refresh.
+3. **On-Demand OAuth Authentication**: Automatically prompts the user for Google authorization (if not already cached) to obtain the required access token.
+4. **Direct Stream Import**: Downloads the binary archive, passes it to the Web Worker for decompression, stores all data in IndexedDB, and binds `driveFileId`.
 
 

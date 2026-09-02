@@ -57,10 +57,18 @@ export interface ProjectStorageContextType {
   ) => Promise<AttachmentMeta | null>
   cleanupOrphanedAttachments: () => Promise<number>
   exportProjectSilic: (customName?: string) => Promise<void>
-  importProjectSilic: (file: File) => Promise<void>
+  generateSilicZipBuffer: (
+    customName?: string
+  ) => Promise<{ buffer: ArrayBuffer; fileName: string }>
+  importProjectSilic: (
+    file: File,
+    newDriveFileId?: string | null
+  ) => Promise<void>
   newProject: () => Promise<void>
   clearProject: () => Promise<void>
   saveProject?: () => Promise<void>
+  driveFileId: string | null
+  setDriveFileId: (id: string | null) => void
   showLoading: (message?: string) => void
   hideLoading: () => void
   isLoading: boolean
@@ -112,6 +120,7 @@ export function ProjectStorageProvider({
   const { templates, setTemplates } = useTemplate()
 
   const [fileName, setFileName] = React.useState<string>("Untitled")
+  const [driveFileId, setDriveFileId] = React.useState<string | null>(null)
   const [attachments, setAttachments] = React.useState<AttachmentMeta[]>([])
   const [loadingState, setLoadingState] = React.useState<{
     isOpen: boolean
@@ -219,6 +228,7 @@ export function ProjectStorageProvider({
         const state = await getAppState()
         if (active && state) {
           if (state.fileName) setFileName(state.fileName)
+          if (state.driveFileId) setDriveFileId(state.driveFileId)
           if (Array.isArray(state.entities)) setEntities(state.entities)
           if (Array.isArray(state.connections))
             setConnections(state.connections)
@@ -250,6 +260,7 @@ export function ProjectStorageProvider({
           connections,
           templates,
           attachments,
+          driveFileId: driveFileId || undefined,
           updatedAt: new Date().toISOString(),
         })
       } catch (err) {
@@ -258,7 +269,7 @@ export function ProjectStorageProvider({
     }, 600)
 
     return () => clearTimeout(timer)
-  }, [fileName, entities, connections, templates, attachments, isHydrated])
+  }, [fileName, entities, connections, templates, attachments, driveFileId, isHydrated])
 
   // Add attachment with optional custom ID and caption
   const addAttachment = React.useCallback(
@@ -447,75 +458,87 @@ export function ProjectStorageProvider({
     [checkStorageQuotaAndPrepare, cleanupOrphanedAttachments]
   )
 
+  // Generate .silic ZIP buffer
+  const generateSilicZipBuffer = React.useCallback(
+    async (
+      customName?: string
+    ): Promise<{ buffer: ArrayBuffer; fileName: string }> => {
+      const targetFileName = (customName || fileName || "untitled").trim()
+      const allStored = await getAllAttachments()
+
+      const manifest: SilicManifest = {
+        version: 1,
+        fileName: targetFileName,
+        exportedAt: new Date().toISOString(),
+        attachments,
+      }
+
+      // Read all attachment blobs into buffers
+      const attachmentBuffers: Array<{
+        path: string
+        buffer: ArrayBuffer
+      }> = []
+      const transferable: ArrayBuffer[] = []
+
+      for (const meta of attachments) {
+        const stored = allStored.find((s) => s.id === meta.id)
+        if (stored && stored.blob) {
+          const buf = await stored.blob.arrayBuffer()
+          attachmentBuffers.push({
+            path: `attachments/${meta.id}`,
+            buffer: buf,
+          })
+          transferable.push(buf)
+        }
+      }
+
+      const worker = new Worker(
+        new URL("../lib/workers/zipWorker.ts", import.meta.url),
+        { type: "module" }
+      )
+
+      const zipPromise = new Promise<ArrayBuffer>((resolve, reject) => {
+        worker.onmessage = (e) => {
+          const res = e.data
+          worker.terminate()
+          if (res.success && res.action === "export") {
+            resolve(res.zipBuffer)
+          } else {
+            reject(new Error(res.error || "Export failed"))
+          }
+        }
+        worker.onerror = (err) => {
+          worker.terminate()
+          reject(err)
+        }
+
+        worker.postMessage(
+          {
+            action: "export",
+            manifestJson: JSON.stringify(manifest, null, 2),
+            entitiesJson: JSON.stringify(entities, null, 2),
+            connectionsJson: JSON.stringify(connections, null, 2),
+            templatesJson: JSON.stringify(templates, null, 2),
+            attachments: attachmentBuffers,
+          },
+          transferable
+        )
+      })
+
+      const zipBuffer = await zipPromise
+      return { buffer: zipBuffer, fileName: targetFileName }
+    },
+    [attachments, connections, entities, fileName, templates]
+  )
+
   // Export to .silic
   const exportProjectSilic = React.useCallback(
     async (customName?: string) => {
       showLoading(t("common.processing"))
       try {
-        const targetFileName = (customName || fileName || "untitled").trim()
-        const allStored = await getAllAttachments()
-
-        const manifest: SilicManifest = {
-          version: 1,
-          fileName: targetFileName,
-          exportedAt: new Date().toISOString(),
-          attachments,
-        }
-
-        // Read all attachment blobs into buffers
-        const attachmentBuffers: Array<{
-          path: string
-          buffer: ArrayBuffer
-        }> = []
-        const transferable: ArrayBuffer[] = []
-
-        for (const meta of attachments) {
-          const stored = allStored.find((s) => s.id === meta.id)
-          if (stored && stored.blob) {
-            const buf = await stored.blob.arrayBuffer()
-            attachmentBuffers.push({
-              path: `attachments/${meta.id}`,
-              buffer: buf,
-            })
-            transferable.push(buf)
-          }
-        }
-
-        const worker = new Worker(
-          new URL("../lib/workers/zipWorker.ts", import.meta.url),
-          { type: "module" }
-        )
-
-        const zipPromise = new Promise<ArrayBuffer>((resolve, reject) => {
-          worker.onmessage = (e) => {
-            const res = e.data
-            worker.terminate()
-            if (res.success && res.action === "export") {
-              resolve(res.zipBuffer)
-            } else {
-              reject(new Error(res.error || "Export failed"))
-            }
-          }
-          worker.onerror = (err) => {
-            worker.terminate()
-            reject(err)
-          }
-
-          worker.postMessage(
-            {
-              action: "export",
-              manifestJson: JSON.stringify(manifest, null, 2),
-              entitiesJson: JSON.stringify(entities, null, 2),
-              connectionsJson: JSON.stringify(connections, null, 2),
-              templatesJson: JSON.stringify(templates, null, 2),
-              attachments: attachmentBuffers,
-            },
-            transferable
-          )
-        })
-
-        const zipBuffer = await zipPromise
-        downloadSilicFile(zipBuffer, targetFileName)
+        const { buffer, fileName: targetFileName } =
+          await generateSilicZipBuffer(customName)
+        downloadSilicFile(buffer, targetFileName)
 
         toast.add({
           type: "success",
@@ -533,21 +556,12 @@ export function ProjectStorageProvider({
         hideLoading()
       }
     },
-    [
-      attachments,
-      connections,
-      entities,
-      fileName,
-      hideLoading,
-      showLoading,
-      t,
-      templates,
-    ]
+    [generateSilicZipBuffer, hideLoading, showLoading, t]
   )
 
   // Import from .silic
   const importProjectSilic = React.useCallback(
-    async (file: File) => {
+    async (file: File, newDriveFileId?: string | null) => {
       showLoading(t("common.processing"))
       try {
         const fileBuffer = await file.arrayBuffer()
@@ -647,6 +661,9 @@ export function ProjectStorageProvider({
         setConnections(importedConnections)
         setTemplates(importedTemplates)
         setAttachments(newAttachmentsMeta)
+        const finalDriveFileId =
+          newDriveFileId !== undefined ? newDriveFileId : null
+        setDriveFileId(finalDriveFileId)
 
         // Persist imported project state
         await saveAppState({
@@ -655,6 +672,7 @@ export function ProjectStorageProvider({
           connections: importedConnections,
           templates: importedTemplates,
           attachments: newAttachmentsMeta,
+          driveFileId: finalDriveFileId || undefined,
           updatedAt: new Date().toISOString(),
         })
 
@@ -691,6 +709,7 @@ export function ProjectStorageProvider({
         // ignore
       }
       setFileName("Untitled")
+      setDriveFileId(null)
       setEntities([])
       setConnections([])
       setTemplates([])
@@ -729,6 +748,7 @@ export function ProjectStorageProvider({
         connections,
         templates,
         attachments,
+        driveFileId: driveFileId || undefined,
         updatedAt: new Date().toISOString(),
       })
       toast.add({
@@ -749,6 +769,7 @@ export function ProjectStorageProvider({
   }, [
     attachments,
     connections,
+    driveFileId,
     entities,
     fileName,
     hideLoading,
@@ -761,6 +782,8 @@ export function ProjectStorageProvider({
     () => ({
       fileName,
       setFileName,
+      driveFileId,
+      setDriveFileId,
       attachments,
       addAttachment,
       updateAttachmentCaption,
@@ -769,6 +792,7 @@ export function ProjectStorageProvider({
       duplicateAttachment: duplicateFile,
       cleanupOrphanedAttachments,
       exportProjectSilic,
+      generateSilicZipBuffer,
       importProjectSilic,
       newProject,
       clearProject,
@@ -779,6 +803,7 @@ export function ProjectStorageProvider({
     }),
     [
       fileName,
+      driveFileId,
       attachments,
       addAttachment,
       updateAttachmentCaption,
@@ -786,6 +811,7 @@ export function ProjectStorageProvider({
       duplicateFile,
       cleanupOrphanedAttachments,
       exportProjectSilic,
+      generateSilicZipBuffer,
       importProjectSilic,
       newProject,
       clearProject,
