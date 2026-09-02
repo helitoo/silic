@@ -12,7 +12,8 @@ import {
   getDriveFileMetadata,
   saveToDrive,
   shareViewOnly,
-  handleDriveOpenState,
+  handleDriveState,
+  createEmptySilicBuffer,
 } from "@/lib/googleDrive"
 
 // Handle CJS / ESM interop where Vite may wrap the default export in .default
@@ -111,6 +112,7 @@ export function GoogleDrivePickerProvider({
     setDriveFileId,
     importProjectSilic,
     generateSilicZipBuffer,
+    newProject,
     showLoading,
     hideLoading,
   } = useProjectStorage()
@@ -588,20 +590,29 @@ export function GoogleDrivePickerProvider({
     t,
   ])
 
-  // Handle Google Drive "Open with Silic" URL state param on mount
+  // Handle Google Drive "Open with Silic" or "Create with Silic" URL state param on mount
   React.useEffect(() => {
-    const fileId = handleDriveOpenState()
-    if (!fileId) return
+    const driveState = handleDriveState()
+    if (!driveState) return
 
     // Clean URL state param to prevent re-opening on reload and ensure we are on /d
     try {
       const url = new URL(window.location.href)
       url.searchParams.delete("state")
-      const targetPath = url.pathname === "/" || url.pathname === "" ? "/d" : url.pathname
-      const newSearch = url.searchParams.toString() ? `?${url.searchParams.toString()}` : ""
+      const targetPath =
+        url.pathname === "/" || url.pathname === "" ? "/d" : url.pathname
+      const newSearch = url.searchParams.toString()
+        ? `?${url.searchParams.toString()}`
+        : ""
       window.history.replaceState({}, document.title, targetPath + newSearch)
     } catch {
       // ignore
+    }
+
+    if (driveState.action === "open") {
+      loadDriveFile(driveState.fileId)
+    } else if (driveState.action === "create") {
+      createDriveFile(driveState.folderId)
     }
 
     async function loadDriveFile(targetFileId: string) {
@@ -654,8 +665,69 @@ export function GoogleDrivePickerProvider({
       }
     }
 
-    loadDriveFile(fileId)
-  }, [hideLoading, importProjectSilic, navigate, showLoading, t])
+    async function createDriveFile(folderId: string) {
+      showLoading(
+        t("googleDrive.creating") || "Đang tạo tệp trên Google Drive..."
+      )
+      setIsDriveLoading(true)
+
+      try {
+        const token = await getGoogleAccessToken()
+
+        // Reset workspace to blank canvas
+        await newProject()
+
+        const defaultName = "Untitled.silic"
+        const emptyBuffer = createEmptySilicBuffer("Untitled")
+        const blob = new Blob([emptyBuffer], {
+          type: "application/octet-stream",
+        })
+
+        const res = await saveToDrive(
+          blob,
+          defaultName,
+          token,
+          undefined,
+          folderId
+        )
+
+        if (res.id) {
+          setDriveFileId(res.id)
+        }
+        navigate("/d")
+
+        toast.add({
+          type: "success",
+          title:
+            t("googleDrive.createSuccess") ||
+            "Đã tạo tệp mới trên Google Drive",
+          description: res.name || defaultName,
+        })
+      } catch (err: unknown) {
+        setDriveFileId(null)
+        const errorMsg = err instanceof Error ? err.message : String(err)
+        console.error("Failed to create file on Drive:", err)
+        toast.add({
+          type: "error",
+          title:
+            t("googleDrive.createError") ||
+            "Không thể tạo tệp trên Google Drive",
+          description: errorMsg,
+        })
+      } finally {
+        setIsDriveLoading(false)
+        hideLoading()
+      }
+    }
+  }, [
+    hideLoading,
+    importProjectSilic,
+    navigate,
+    newProject,
+    setDriveFileId,
+    showLoading,
+    t,
+  ])
 
   const contextValue = React.useMemo<GoogleDrivePickerContextType>(
     () => ({

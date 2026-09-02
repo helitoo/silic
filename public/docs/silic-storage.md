@@ -837,32 +837,43 @@ sequenceDiagram
     participant Worker as Web Worker (zipWorker.ts)
     participant IDB as IndexedDB (silic-db)
 
-    User->>Browser: Click "Open with Silic" in Google Drive Web UI
-    Browser->>Browser: Navigate to https://silic.app/?state={"ids":["file123"],"action":"open"}
+    User->>Browser: Click "Open with Silic" or "New > Silic" in Google Drive Web UI
+    Browser->>Browser: Navigate to https://silic.kemlib.com/d?state={"action":"open"|"create",...}
     Browser->>DriveCtx: GoogleDrivePickerProvider mounts
 
-    DriveCtx->>DriveCtx: handleDriveOpenState() -> detects fileId = "file123"
-    DriveCtx->>Browser: window.history.replaceState() (Strip `state` param from URL)
+    DriveCtx->>DriveCtx: handleDriveState() -> detects action ("open" or "create")
+    DriveCtx->>Browser: window.history.replaceState() (Strip `state` param and ensure /d route)
 
-    DriveCtx->>DriveCtx: showLoading("Loading file from Google Drive...")
-    DriveCtx->>DriveCtx: getGoogleAccessToken() (Trigger GIS OAuth token request)
-    DriveCtx->>DriveAPI: fetch("https://www.googleapis.com/drive/v3/files/file123?alt=media")
-    DriveAPI-->>DriveCtx: Return binary ArrayBuffer
-
-    DriveCtx->>StorageCtx: importProjectSilic(new File([buffer], "drive-project.silic"), "file123")
-    StorageCtx->>Worker: postMessage({ action: "import", buffer })
-    Worker-->>StorageCtx: Return extracted datasets & attachments
-    StorageCtx->>IDB: Save attachments & App State
-    StorageCtx->>StorageCtx: setDriveFileId("file123")
+    alt action === "open"
+        DriveCtx->>DriveCtx: showLoading("Loading file from Google Drive...")
+        DriveCtx->>DriveCtx: getGoogleAccessToken() (Trigger GIS OAuth token request)
+        DriveCtx->>DriveAPI: fetch("https://www.googleapis.com/drive/v3/files/file123?alt=media")
+        DriveAPI-->>DriveCtx: Return binary ArrayBuffer
+        DriveCtx->>StorageCtx: importProjectSilic(new File([buffer], "drive-project.silic"), "file123")
+        StorageCtx->>Worker: postMessage({ action: "import", buffer })
+        Worker-->>StorageCtx: Return extracted datasets & attachments
+        StorageCtx->>IDB: Save attachments & App State
+        StorageCtx->>StorageCtx: setDriveFileId("file123")
+    else action === "create"
+        DriveCtx->>DriveCtx: showLoading("Creating file on Google Drive...")
+        DriveCtx->>DriveCtx: getGoogleAccessToken()
+        DriveCtx->>StorageCtx: newProject() (Reset workspace)
+        DriveCtx->>DriveCtx: createEmptySilicBuffer("Untitled")
+        DriveCtx->>DriveAPI: saveToDrive(emptyBlob, "Untitled.silic", token, undefined, folderId)
+        DriveAPI-->>DriveCtx: Return created file { id: "newFile123" }
+        DriveCtx->>StorageCtx: setDriveFileId("newFile123")
+    end
 
     DriveCtx->>DriveCtx: hideLoading()
-    DriveCtx->>User: Display success Toast: "Opened file from Google Drive"
+    DriveCtx->>User: Display success Toast
 ```
 
 #### Detailed Processing Steps:
-1. **URL Parameter Parsing (`handleDriveOpenState`)**: Extracts the `ids[0]` from the URL `state` JSON parameter.
-2. **URL Parameter Sanitization**: Invokes `history.replaceState` immediately to remove the `state` parameter from the address bar, preventing duplicate re-imports on browser refresh.
+1. **URL Parameter Parsing (`handleDriveState`)**: Extracts the `ids[0]` when `action === "open"`, or `folderId` when `action === "create"` from the URL `state` JSON parameter.
+2. **URL Parameter Sanitization**: Invokes `history.replaceState` immediately to remove the `state` parameter from the address bar and navigates to `/d`, preventing duplicate re-triggers on browser refresh.
 3. **On-Demand OAuth Authentication**: Automatically prompts the user for Google authorization (if not already cached) to obtain the required access token.
-4. **Direct Stream Import**: Downloads the binary archive, passes it to the Web Worker for decompression, stores all data in IndexedDB, and binds `driveFileId`.
+4. **Direct Stream Import / Create**:
+   - **Open**: Downloads the binary archive, passes it to the Web Worker for decompression, stores all data in IndexedDB, and binds `driveFileId`.
+   - **Create**: Clears the canvas, generates a blank `.silic` archive in-memory, creates the file in the target Drive folder via Google Drive API multipart upload, and binds the newly generated `driveFileId`.
 
 

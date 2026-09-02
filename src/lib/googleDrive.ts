@@ -284,10 +284,41 @@ export async function shareViewOnly(
   return res.json()
 }
 
+import { strToU8, zipSync, type Zippable } from "fflate"
+
 /**
- * Check if the application was opened by Google Drive (via "Open with" action).
+ * Generate an empty .silic project archive in memory.
  */
-export function handleDriveOpenState(): string | null {
+export function createEmptySilicBuffer(fileName: string = "Untitled"): ArrayBuffer {
+  const manifest = {
+    version: 1,
+    fileName,
+    exportedAt: new Date().toISOString(),
+    attachments: [],
+  }
+
+  const zipEntries: Zippable = {
+    "manifest.json": [
+      strToU8(JSON.stringify(manifest, null, 2)),
+      { level: 6 },
+    ],
+    "entities.json": [strToU8("[]"), { level: 6 }],
+    "connections.json": [strToU8("[]"), { level: 6 }],
+    "templates.json": [strToU8("[]"), { level: 6 }],
+  }
+
+  const zipped = zipSync(zipEntries)
+  return zipped.buffer as ArrayBuffer
+}
+
+export type DriveStateAction =
+  | { action: "open"; fileId: string }
+  | { action: "create"; folderId: string }
+
+/**
+ * Check if the application was opened or created by Google Drive (via "Open with" or "New" action).
+ */
+export function handleDriveState(): DriveStateAction | null {
   if (typeof window === "undefined") return null
   const params = new URLSearchParams(window.location.search)
   const state = params.get("state")
@@ -300,10 +331,22 @@ export function handleDriveOpenState(): string | null {
       Array.isArray(parsed.ids) &&
       parsed.ids.length > 0
     ) {
-      return parsed.ids[0]
+      return { action: "open", fileId: parsed.ids[0] }
+    }
+    if (parsed.action === "create") {
+      return { action: "create", folderId: parsed.folderId || "root" }
     }
     return null
   } catch {
     return null
   }
 }
+
+/**
+ * Backward-compatible helper for Google Drive open action.
+ */
+export function handleDriveOpenState(): string | null {
+  const driveState = handleDriveState()
+  return driveState?.action === "open" ? driveState.fileId : null
+}
+
