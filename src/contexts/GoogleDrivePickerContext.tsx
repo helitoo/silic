@@ -101,9 +101,9 @@ function buildFolderView() {
   if (!google?.picker) return null
 
   const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
-  view.setIncludeFolders(true)      // Hierarchical folder tree with breadcrumbs
+  view.setIncludeFolders(true) // Hierarchical folder tree with breadcrumbs
   view.setSelectFolderEnabled(true) // Allows selecting current folder or My Drive (root)
-  view.setParent("root")            // Starts navigation at My Drive
+  view.setParent("root") // Starts navigation at My Drive
   view.setMimeTypes("application/vnd.google-apps.folder")
   view.setMode(google.picker.DocsViewMode.LIST)
   return view
@@ -141,7 +141,7 @@ export function GoogleDrivePickerProvider({
     }
   }, [authRes])
 
-  // Handle opening file with Google Drive Picker
+  // Handle opening file with Google Drive™ Picker
   const handleOpenPicker = React.useCallback(
     (
       viewId: ViewIdOptions = "DOCS",
@@ -156,7 +156,7 @@ export function GoogleDrivePickerProvider({
       if (!clientId || !developerKey) {
         toast.add({
           type: "error",
-          title: "Google Drive Error",
+          title: "Google Drive™ Error",
           description:
             "Missing VITE_GOOGLE_CLIENT_ID or VITE_GOOGLE_API_KEY in environment variables",
         })
@@ -169,10 +169,9 @@ export function GoogleDrivePickerProvider({
       const isDefaultFolderView = viewId === "FOLDERS" && showUploadFolders
       const customFolderView = isDefaultFolderView ? buildFolderView() : null
 
-      const customViews = [
-        customOpenDocsView,
-        customFolderView,
-      ].filter(Boolean) as unknown[]
+      const customViews = [customOpenDocsView, customFolderView].filter(
+        Boolean
+      ) as unknown[]
 
       const cleanup = () => {
         setIsDriveLoading(false)
@@ -189,7 +188,8 @@ export function GoogleDrivePickerProvider({
           showUploadFolders,
           supportDrives,
           multiselect,
-          customViews: customViews.length > 0 ? (customViews as any) : undefined,
+          customViews:
+            customViews.length > 0 ? (customViews as any) : undefined,
           setSelectFolderEnabled: showUploadFolders,
           setIncludeFolders: true,
           setOrigin: window.location.origin,
@@ -211,7 +211,7 @@ export function GoogleDrivePickerProvider({
               const resourceKey = doc.resourceKey || undefined
 
               showLoading(
-                t("googleDrive.opening") || "Đang tải tệp từ Google Drive..."
+                t("googleDrive.opening") || "Đang tải tệp từ Google Drive™..."
               )
               setIsDriveLoading(true)
 
@@ -231,7 +231,7 @@ export function GoogleDrivePickerProvider({
                     type: "error",
                     title:
                       t("googleDrive.trashedError") ||
-                      "Tệp đã bị chuyển vào thùng rác trên Google Drive",
+                      "Tệp đã bị chuyển vào thùng rác trên Google Drive™",
                     description: meta.name || docName,
                   })
                   return
@@ -253,7 +253,7 @@ export function GoogleDrivePickerProvider({
                   type: "success",
                   title:
                     t("googleDrive.openSuccess") ||
-                    "Đã mở file từ Google Drive",
+                    "Đã mở file từ Google Drive™",
                   description: docName,
                 })
               } catch (err: unknown) {
@@ -275,7 +275,7 @@ export function GoogleDrivePickerProvider({
                     type: "error",
                     title:
                       t("googleDrive.notFoundError") ||
-                      "Không tìm thấy tệp trên Google Drive",
+                      "Không tìm thấy tệp trên Google Drive™",
                     description:
                       t("googleDrive.notFoundErrorDesc") ||
                       "Tệp có thể đã bị xóa vĩnh viễn.",
@@ -285,7 +285,7 @@ export function GoogleDrivePickerProvider({
                     type: "error",
                     title:
                       t("googleDrive.openError") ||
-                      "Không thể mở file từ Google Drive",
+                      "Không thể mở file từ Google Drive™",
                     description: errorMsg,
                   })
                 }
@@ -299,10 +299,10 @@ export function GoogleDrivePickerProvider({
       } catch (err: unknown) {
         cleanup()
         const errorMsg = err instanceof Error ? err.message : String(err)
-        console.error("Failed to open Google Drive Picker:", err)
+        console.error("Failed to open Google Drive™ Picker:", err)
         toast.add({
           type: "error",
-          title: "Google Drive Picker Error",
+          title: "Google Drive™ Picker Error",
           description: errorMsg,
         })
       }
@@ -319,7 +319,7 @@ export function GoogleDrivePickerProvider({
     ]
   )
 
-  // Save to Google Drive
+  // Save to Google Drive™
   const handleSaveToDrive = React.useCallback(
     async (isSaveAs = false) => {
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -328,7 +328,7 @@ export function GoogleDrivePickerProvider({
       if (!clientId || !developerKey) {
         toast.add({
           type: "error",
-          title: "Google Drive Error",
+          title: "Google Drive™ Error",
           description:
             "Missing VITE_GOOGLE_CLIENT_ID or VITE_GOOGLE_API_KEY in environment variables",
         })
@@ -336,7 +336,7 @@ export function GoogleDrivePickerProvider({
       }
 
       if (!isSaveAs && driveFileId) {
-        showLoading(t("googleDrive.saving") || "Đang lưu vào Google Drive...")
+        showLoading(t("googleDrive.saving") || "Đang lưu vào Google Drive™...")
         setIsDriveLoading(true)
 
         try {
@@ -354,7 +354,7 @@ export function GoogleDrivePickerProvider({
                   "Tệp trên Drive đã bị xóa",
                 description:
                   t("googleDrive.fileTrashedSaveDesc") ||
-                  "Tệp trên Google Drive hiện đang ở trong thùng rác. Vui lòng chọn vị trí lưu mới.",
+                  "Tệp trên Google Drive™ hiện đang ở trong thùng rác. Vui lòng chọn vị trí lưu mới.",
               })
               handleSaveToDrive(true)
               return
@@ -376,16 +376,16 @@ export function GoogleDrivePickerProvider({
 
           toast.add({
             type: "success",
-            title: t("googleDrive.saveSuccess") || "Đã lưu vào Google Drive",
+            title: t("googleDrive.saveSuccess") || "Đã lưu vào Google Drive™",
             description: `${projectName}.silic`,
           })
         } catch (err: unknown) {
           const errorMsg = err instanceof Error ? err.message : String(err)
-          console.error("Failed to save to Google Drive:", err)
+          console.error("Failed to save to Google Drive™:", err)
           toast.add({
             type: "error",
             title:
-              t("googleDrive.saveError") || "Lưu vào Google Drive thất bại",
+              t("googleDrive.saveError") || "Lưu vào Google Drive™ thất bại",
             description: errorMsg,
           })
         } finally {
@@ -414,7 +414,8 @@ export function GoogleDrivePickerProvider({
           showUploadFolders: true,
           supportDrives: true,
           multiselect: false,
-          customViews: customViews.length > 0 ? (customViews as any) : undefined,
+          customViews:
+            customViews.length > 0 ? (customViews as any) : undefined,
           setSelectFolderEnabled: true,
           setIncludeFolders: true,
           setOrigin: window.location.origin,
@@ -435,7 +436,7 @@ export function GoogleDrivePickerProvider({
               const folderResourceKey = selectedFolder.resourceKey || undefined
 
               showLoading(
-                t("googleDrive.saving") || "Đang lưu vào Google Drive..."
+                t("googleDrive.saving") || "Đang lưu vào Google Drive™..."
               )
               setIsDriveLoading(true)
 
@@ -465,20 +466,20 @@ export function GoogleDrivePickerProvider({
                   type: "success",
                   title: isSaveAs
                     ? t("googleDrive.saveAsSuccess") ||
-                      "Đã tạo và lưu tệp mới trên Google Drive"
+                      "Đã tạo và lưu tệp mới trên Google Drive™"
                     : t("googleDrive.saveSuccess") ||
-                      "Đã lưu vào Google Drive",
+                      "Đã lưu vào Google Drive™",
                   description: `${projectName}.silic`,
                 })
               } catch (err: unknown) {
                 const errorMsg =
                   err instanceof Error ? err.message : String(err)
-                console.error("Failed to save as to Google Drive:", err)
+                console.error("Failed to save as to Google Drive™:", err)
                 toast.add({
                   type: "error",
                   title:
                     t("googleDrive.saveError") ||
-                    "Lưu vào Google Drive thất bại",
+                    "Lưu vào Google Drive™ thất bại",
                   description: errorMsg,
                 })
               } finally {
@@ -494,7 +495,7 @@ export function GoogleDrivePickerProvider({
         console.error("Failed to open Folder Picker for Save As:", err)
         toast.add({
           type: "error",
-          title: "Google Drive Picker Error",
+          title: "Google Drive™ Picker Error",
           description: errorMsg,
         })
       }
@@ -511,7 +512,7 @@ export function GoogleDrivePickerProvider({
     ]
   )
 
-  // Share file on Google Drive (view-only link copied to clipboard)
+  // Share file on Google Drive™ (view-only link copied to clipboard)
   const handleShareDrive = React.useCallback(async () => {
     showLoading(t("googleDrive.sharing") || "Đang chuẩn bị chia sẻ...")
     setIsDriveLoading(true)
@@ -523,7 +524,7 @@ export function GoogleDrivePickerProvider({
       if (!currentFileId) {
         showLoading(
           t("googleDrive.savingBeforeShare") ||
-            "Đang lưu lên Google Drive trước khi chia sẻ..."
+            "Đang lưu lên Google Drive™ trước khi chia sẻ..."
         )
         const { buffer, fileName: projectName } = await generateSilicZipBuffer()
         const blob = new Blob([buffer], {
@@ -535,7 +536,7 @@ export function GoogleDrivePickerProvider({
           currentFileId = res.id
           setDriveFileId(res.id)
         } else {
-          throw new Error("Failed to create file on Google Drive for sharing")
+          throw new Error("Failed to create file on Google Drive™ for sharing")
         }
       }
 
@@ -567,11 +568,11 @@ export function GoogleDrivePickerProvider({
       }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err)
-      console.error("Failed to share Google Drive file:", err)
+      console.error("Failed to share Google Drive™ file:", err)
       toast.add({
         type: "error",
         title:
-          t("googleDrive.shareError") || "Không thể chia sẻ tệp Google Drive",
+          t("googleDrive.shareError") || "Không thể chia sẻ tệp Google Drive™",
         description: errorMsg,
       })
     } finally {
@@ -591,10 +592,12 @@ export function GoogleDrivePickerProvider({
   const executeDriveAction = React.useCallback(
     async (driveState: DriveStateAction, isUserGesture = false) => {
       if (driveState.action === "open") {
-        showLoading(t("googleDrive.opening") || "Đang tải tệp từ Google Drive...")
+        showLoading(
+          t("googleDrive.opening") || "Đang tải tệp từ Google Drive™..."
+        )
       } else {
         showLoading(
-          t("googleDrive.creating") || "Đang tạo tệp trên Google Drive..."
+          t("googleDrive.creating") || "Đang tạo tệp trên Google Drive™..."
         )
       }
       setIsDriveLoading(true)
@@ -631,7 +634,7 @@ export function GoogleDrivePickerProvider({
               type: "error",
               title:
                 t("googleDrive.trashedError") ||
-                "Tệp đã bị chuyển vào thùng rác trên Google Drive",
+                "Tệp đã bị chuyển vào thùng rác trên Google Drive™",
               description: meta.name || "drive-project.silic",
             })
             return
@@ -653,8 +656,7 @@ export function GoogleDrivePickerProvider({
               importErr instanceof Error ? importErr.message : String(importErr)
             toast.add({
               type: "error",
-              title:
-                t("googleDrive.corruptError") || "Tệp .silic không hợp lệ",
+              title: t("googleDrive.corruptError") || "Tệp .silic không hợp lệ",
               description:
                 importMsg ||
                 t("googleDrive.corruptErrorDesc") ||
@@ -667,7 +669,8 @@ export function GoogleDrivePickerProvider({
 
           toast.add({
             type: "success",
-            title: t("googleDrive.openSuccess") || "Đã mở file từ Google Drive",
+            title:
+              t("googleDrive.openSuccess") || "Đã mở file từ Google Drive™",
             description: meta.name || "drive-project.silic",
           })
         } else if (driveState.action === "create") {
@@ -698,7 +701,7 @@ export function GoogleDrivePickerProvider({
             type: "success",
             title:
               t("googleDrive.createSuccess") ||
-              "Đã tạo tệp mới trên Google Drive",
+              "Đã tạo tệp mới trên Google Drive™",
             description: res.name || defaultName,
           })
         }
@@ -711,8 +714,7 @@ export function GoogleDrivePickerProvider({
           toast.add({
             type: "error",
             title:
-              t("googleDrive.forbiddenError") ||
-              "Không có quyền truy cập tệp",
+              t("googleDrive.forbiddenError") || "Không có quyền truy cập tệp",
             description:
               t("googleDrive.forbiddenErrorDesc") ||
               "Tài khoản Google hiện tại không có quyền truy cập tệp này.",
@@ -722,7 +724,7 @@ export function GoogleDrivePickerProvider({
             type: "error",
             title:
               t("googleDrive.notFoundError") ||
-              "Không tìm thấy tệp trên Google Drive",
+              "Không tìm thấy tệp trên Google Drive™",
             description:
               t("googleDrive.notFoundErrorDesc") ||
               "Tệp có thể đã bị xóa vĩnh viễn hoặc liên kết không hợp lệ.",
@@ -731,7 +733,8 @@ export function GoogleDrivePickerProvider({
           toast.add({
             type: "error",
             title:
-              t("googleDrive.authCancelled") || "Đã hủy đăng nhập Google Drive",
+              t("googleDrive.authCancelled") ||
+              "Đã hủy đăng nhập Google Drive™",
             description: errorMsg,
           })
         } else {
@@ -740,9 +743,9 @@ export function GoogleDrivePickerProvider({
             title:
               driveState.action === "create"
                 ? t("googleDrive.createError") ||
-                  "Không thể tạo tệp trên Google Drive"
+                  "Không thể tạo tệp trên Google Drive™"
                 : t("googleDrive.openError") ||
-                  "Không thể mở file từ Google Drive",
+                  "Không thể mở file từ Google Drive™",
             description: errorMsg,
           })
         }
@@ -762,7 +765,7 @@ export function GoogleDrivePickerProvider({
     ]
   )
 
-  // Handle Google Drive "Open with Silic" or "Create with Silic" URL state param on mount
+  // Handle Google Drive™ "Open with Silic" or "Create with Silic" URL state param on mount
   React.useEffect(() => {
     const driveState = handleDriveState()
     if (!driveState) return
@@ -819,17 +822,16 @@ export function GoogleDrivePickerProvider({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {t("googleDrive.authRequiredTitle") ||
-                "Yêu cầu đăng nhập Google"}
+              {t("googleDrive.authRequiredTitle") || "Yêu cầu đăng nhập Google"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {t("googleDrive.authRequiredDesc") ||
-                "Vui lòng đăng nhập tài khoản Google Drive để tiếp tục thao tác với tệp tin."}
+                "Vui lòng đăng nhập tài khoản Google Drive™ để tiếp tục thao tác với tệp tin."}
               {pendingDriveAction?.userId && (
                 <span className="mt-2 block text-xs text-muted-foreground">
                   {t("googleDrive.authRequiredHint", {
                     userId: pendingDriveAction.userId,
-                  }) || `Tài khoản Google Drive: ${pendingDriveAction.userId}`}
+                  }) || `Tài khoản Google Drive™: ${pendingDriveAction.userId}`}
                 </span>
               )}
             </AlertDialogDescription>
@@ -842,7 +844,7 @@ export function GoogleDrivePickerProvider({
                   type: "info",
                   title:
                     t("googleDrive.authCancelled") ||
-                    "Đã hủy đăng nhập Google Drive",
+                    "Đã hủy đăng nhập Google Drive™",
                 })
               }}
             >

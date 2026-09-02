@@ -1,4 +1,4 @@
-// Google Drive API & OAuth Utilities for Silic
+// Google Drive™ API & OAuth Utilities for Silic
 import { strToU8, zipSync, type Zippable } from "fflate"
 
 export interface DriveTokenResponse {
@@ -159,7 +159,7 @@ export function setCachedGoogleAccessToken(
 }
 
 /**
- * Download a file binary from Google Drive via fileId, supporting Drive Resource Keys.
+ * Download a file binary from Google Drive™ via fileId, supporting Drive Resource Keys.
  */
 export async function downloadDriveFile(
   fileId: string,
@@ -199,7 +199,7 @@ export interface DriveFileMetadata {
 }
 
 /**
- * Fetch metadata for a file in Google Drive (including trash status and resource keys).
+ * Fetch metadata for a file in Google Drive™ (including trash status and resource keys).
  */
 export async function getDriveFileMetadata(
   fileId: string,
@@ -231,7 +231,7 @@ export async function getDriveFileMetadata(
 }
 
 /**
- * Save file to Google Drive (create new or update existing file), supporting folder resource keys.
+ * Save file to Google Drive™ (create new or update existing file), supporting folder resource keys.
  */
 export async function saveToDrive(
   content: Blob,
@@ -298,7 +298,7 @@ export async function saveToDrive(
 }
 
 /**
- * Share a file on Google Drive as view-only (role: "reader").
+ * Share a file on Google Drive™ as view-only (role: "reader").
  */
 export async function shareViewOnly(
   fileId: string,
@@ -371,7 +371,7 @@ export type DriveStateAction =
     }
 
 /**
- * Check if the application was opened or created by Google Drive (via "Open with" or "New" action).
+ * Check if the application was opened or created by Google Drive™ (via "Open with" or "New" action).
  */
 export function handleDriveState(): DriveStateAction | null {
   if (typeof window === "undefined") return null
@@ -412,7 +412,7 @@ export function handleDriveState(): DriveStateAction | null {
 }
 
 /**
- * Backward-compatible helper for Google Drive open action.
+ * Backward-compatible helper for Google Drive™ open action.
  */
 export function handleDriveOpenState(): string | null {
   const driveState = handleDriveState()

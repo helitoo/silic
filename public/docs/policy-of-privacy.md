@@ -8,7 +8,7 @@ Version: _v0.3.0_.
 
 **Silic** ("we", "our", or "the application") is a local-first, privacy-focused knowledge graph note-taking web application and Progressive Web App (PWA) available at [https://silic.kemlib.com](https://silic.kemlib.com).
 
-We believe that your data belongs entirely to you. This Privacy Policy outlines how Silic handles, stores, and protects your information, as well as the rules governing our optional third-party integrations (including Google Drive API), in compliance with applicable data protection laws and **Google API Services User Data Policy**.
+We believe that your data belongs entirely to you. This Privacy Policy outlines how Silic handles, stores, and protects your information, as well as the rules governing our optional third-party integrations (including Google Drive™ API), in compliance with applicable data protection laws and **Google API Services User Data Policy**.
 
 ---
 
@@ -32,28 +32,28 @@ We believe that your data belongs entirely to you. This Privacy Policy outlines 
 
 ---
 
-## 3. Google Drive Integration & Google User Data
+## 3. Google Drive™ Integration & Google User Data
 
-Silic offers an optional feature allowing users to backup, sync, open, and save `.silic` project files to their personal Google Drive storage.
+Silic offers an optional feature allowing users to backup, sync, open, and save `.silic` project files to their personal Google Drive™ storage.
 
 ### 3.1. Google API Scopes Requested
 
-When you choose to connect Google Drive, Silic requests access via the Google OAuth 2.0 protocol using the following minimal scope:
+When you choose to connect Google Drive™, Silic requests access via the Google OAuth 2.0 protocol using the following minimal scope:
 
 - `https://www.googleapis.com/auth/drive.file`
   - **Scope Purpose:** View, create, edit, save, and delete _only_ the specific files and folders that you open, create, or authorize with Silic (specifically `.silic` project graph files).
-  - **Limited Access:** Silic does **not** request access to your entire Google Drive and cannot view or access unrelated files, photos, emails, or personal documents in your Google Drive.
+  - **Limited Access:** Silic does **not** request access to your entire Google Drive™ and cannot view or access unrelated files, photos, emails, or personal documents in your Google Drive™.
 
 ### 3.2. How Google User Data Is Used
 
-- **Saving Projects:** To export and write your local graph projects directly as `.silic` files to your Google Drive.
-- **Opening Projects:** To let you select and import your previously saved `.silic` files via the Google Drive Picker.
-- **File Sharing:** To retrieve or generate a shareable Google Drive link when you explicitly choose to share your project file.
+- **Saving Projects:** To export and write your local graph projects directly as `.silic` files to your Google Drive™.
+- **Opening Projects:** To let you select and import your previously saved `.silic` files via the Google Drive™ Picker.
+- **File Sharing:** To retrieve or generate a shareable Google Drive™ link when you explicitly choose to share your project file.
 
 ### 3.3. How Google User Data Is Transmitted and Stored
 
 - **Direct Encryption:** All API calls and file transfers occur directly and securely over encrypted HTTPS/TLS connections between your web browser client and Google's official API endpoints (`https://www.googleapis.com`).
-- **No Silic Server Relay:** Google Drive files, directory metadata, and OAuth tokens **never pass through, nor are they ever stored on, any intermediary servers owned or operated by Silic**.
+- **No Silic Server Relay:** Google Drive™ files, directory metadata, and OAuth tokens **never pass through, nor are they ever stored on, any intermediary servers owned or operated by Silic**.
 - **Token Handling:** OAuth access tokens granted by Google are stored temporarily in browser session memory or secure local storage and are used solely to authenticate your direct requests to Google APIs.
 
 ### 3.4. No Sharing, No Sale & No AI Training
@@ -72,7 +72,7 @@ When you choose to connect Google Drive, Silic requests access via the Google OA
 You retain complete ownership and control over your data at all times:
 
 1. **Local Data Management:** You can view, modify, export, or permanently erase all your locally stored notes and graph data at any time via the application interface or by clearing your browser's site data / IndexedDB storage.
-2. **Google Drive Data Management:** You can view, rename, download, or permanently delete `.silic` files directly inside your [Google Drive](https://drive.google.com).
+2. **Google Drive™ Data Management:** You can view, rename, download, or permanently delete `.silic` files directly inside your [Google Drive™](https://drive.google.com).
 3. **Revoking Google Account Access:** You can disconnect Silic from your Google Account at any time by revoking permissions in your Google Account Security settings at:  
    [https://myaccount.google.com/permissions](https://myaccount.google.com/permissions)
 

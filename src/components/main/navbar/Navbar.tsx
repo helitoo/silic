@@ -1,39 +1,14 @@
 import * as React from "react"
-import { ArrowDownToLine, ArrowRight, CloudUpload, Loader2 } from "lucide-react"
+import {
+  ArrowDownToLine,
+  ArrowRight,
+  Cloud,
+  CloudUpload,
+  Loader2,
+} from "lucide-react"
 
 function GoogleDriveIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 87.3 78"
-      className={className}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z"
-        fill="#0066da"
-      />
-      <path
-        d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z"
-        fill="#00ac47"
-      />
-      <path
-        d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z"
-        fill="#ea4335"
-      />
-      <path
-        d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z"
-        fill="#00832d"
-      />
-      <path
-        d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z"
-        fill="#2684fc"
-      />
-      <path
-        d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z"
-        fill="#ffba00"
-      />
-    </svg>
-  )
+  return <Cloud className={className} />
 }
 
 import {
@@ -175,31 +150,19 @@ export default function Navbar() {
         e.preventDefault()
         e.stopPropagation()
         handleSaveToDrive(false)
-      } else if (
-        isMod &&
-        (e.key.toLowerCase() === "u" || e.code === "KeyU")
-      ) {
+      } else if (isMod && (e.key.toLowerCase() === "u" || e.code === "KeyU")) {
         e.preventDefault()
         e.stopPropagation()
         handleUploadSilic()
-      } else if (
-        isMod &&
-        (e.key.toLowerCase() === "d" || e.code === "KeyD")
-      ) {
+      } else if (isMod && (e.key.toLowerCase() === "d" || e.code === "KeyD")) {
         e.preventDefault()
         e.stopPropagation()
         handleDownloadSilic()
-      } else if (
-        isMod &&
-        (e.key.toLowerCase() === "n" || e.code === "KeyN")
-      ) {
+      } else if (isMod && (e.key.toLowerCase() === "n" || e.code === "KeyN")) {
         e.preventDefault()
         e.stopPropagation()
         setIsNewAlertOpen(true)
-      } else if (
-        isMod &&
-        (e.key.toLowerCase() === "q" || e.code === "KeyQ")
-      ) {
+      } else if (isMod && (e.key.toLowerCase() === "q" || e.code === "KeyQ")) {
         e.preventDefault()
         e.stopPropagation()
         if (e.shiftKey) {
@@ -261,8 +224,12 @@ export default function Navbar() {
 
   if (isLanding) {
     const guideGroup =
-      items.find((g) => g.id === "guide" || g.label === t("navbar.guide") || g.label === "Guide") ||
-      items[items.length - 1]
+      items.find(
+        (g) =>
+          g.id === "guide" ||
+          g.label === t("navbar.guide") ||
+          g.label === "Guide"
+      ) || items[items.length - 1]
 
     return (
       <header className="sticky top-0 z-40 w-full border-b border-border/50 bg-background/80 shadow-xs backdrop-blur-md">
@@ -390,11 +357,11 @@ export default function Navbar() {
               className="group relative flex size-7 shrink-0 items-center justify-center rounded-md transition-all hover:bg-muted/80 focus-visible:ring-1 focus-visible:ring-primary focus-visible:outline-none"
               title={
                 t("googleDrive.connectedTooltip") ||
-                "Đã liên kết với Google Drive (Nhấp để mở trên Drive)"
+                "Đã liên kết với Google Drive™ (Nhấp để mở trên Drive)"
               }
             >
               <GoogleDriveIcon className="size-4 transition-transform group-hover:scale-110" />
-              <span className="absolute bottom-1 right-1 size-1.5 rounded-full bg-emerald-500 ring-1 ring-background" />
+              <span className="absolute top-1 right-1 size-1.5 rounded-full bg-emerald-500 ring-1 ring-background" />
             </a>
           ) : (
             <button
@@ -403,7 +370,7 @@ export default function Navbar() {
               className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted/80 hover:text-foreground focus-visible:ring-1 focus-visible:ring-primary focus-visible:outline-none"
               title={
                 t("googleDrive.notConnectedTooltip") ||
-                "Lưu tệp vào Google Drive"
+                "Lưu tệp vào Google Drive™"
               }
             >
               <CloudUpload className="size-4" />
@@ -480,7 +447,7 @@ export default function Navbar() {
                   className="flex size-6 shrink-0 items-center justify-center rounded text-primary"
                   title={
                     t("googleDrive.syncing") ||
-                    "Đang đồng bộ với Google Drive..."
+                    "Đang đồng bộ với Google Drive™..."
                   }
                 >
                   <Loader2 className="size-3.5 animate-spin sm:size-4" />
@@ -493,11 +460,11 @@ export default function Navbar() {
                   className="group relative flex size-6 shrink-0 items-center justify-center rounded-md transition-all hover:bg-muted/80 focus-visible:ring-1 focus-visible:ring-primary focus-visible:outline-none"
                   title={
                     t("googleDrive.connectedTooltip") ||
-                    "Đã liên kết với Google Drive (Nhấp để mở trên Drive)"
+                    "Đã liên kết với Google Drive™ (Nhấp để mở trên Drive)"
                   }
                 >
                   <GoogleDriveIcon className="size-3.5 transition-transform group-hover:scale-110 sm:size-4" />
-                  <span className="absolute -bottom-0.5 -right-0.5 size-1.5 rounded-full bg-emerald-500 ring-1 ring-background" />
+                  <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-emerald-500 ring-1 ring-background" />
                 </a>
               ) : (
                 <button
@@ -506,7 +473,7 @@ export default function Navbar() {
                   className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted/80 hover:text-foreground focus-visible:ring-1 focus-visible:ring-primary focus-visible:outline-none"
                   title={
                     t("googleDrive.notConnectedTooltip") ||
-                    "Lưu tệp vào Google Drive"
+                    "Lưu tệp vào Google Drive™"
                   }
                 >
                   <CloudUpload className="size-3.5 sm:size-4" />
