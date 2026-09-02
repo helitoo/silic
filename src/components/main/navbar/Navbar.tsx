@@ -83,7 +83,8 @@ export default function Navbar() {
     route.type === "docs-query" ||
     route.type === "docs-storage" ||
     route.type === "terms-of-service" ||
-    route.type === "policy-of-privacy"
+    route.type === "policy-of-privacy" ||
+    route.type === "help"
 
   const handleInstallClick = React.useCallback(async () => {
     if (isInstalled) {

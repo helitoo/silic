@@ -11,6 +11,7 @@ export type AppRoute =
   | { type: "docs-storage" }
   | { type: "terms-of-service" }
   | { type: "policy-of-privacy" }
+  | { type: "help" }
   | { type: "not-found" }
 
 export interface RouterContextType {
@@ -55,6 +56,9 @@ export function parseRoute(pathname: string, search: string): AppRoute {
   }
   if (cleanPath === "/policy-of-privacy") {
     return { type: "policy-of-privacy" }
+  }
+  if (cleanPath === "/help") {
+    return { type: "help" }
   }
 
   // 3. Main app home at "/d"

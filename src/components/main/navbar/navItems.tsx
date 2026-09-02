@@ -183,9 +183,8 @@ export function getNavItems(
         {
           id: "help",
           icon: CircleQuestionMark,
-          label: t("navbar.help"),
-          href: "https://github.com/helitoo",
-          target: "_blank",
+          label: t("navbar.help") || "Help",
+          href: "/help",
         },
       ],
     },

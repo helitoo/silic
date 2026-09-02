@@ -7,6 +7,7 @@ import LandingPage from "@/components/main/page/LandingPage"
 import NotFoundPage from "@/components/main/page/NotFoundPage"
 import TemplatesPage from "@/components/main/page/TemplatesPage"
 import GuidePage from "@/components/main/page/guide/GuidePage"
+import HelpPage from "@/components/main/page/guide/HelpPage"
 import MarkdownPage from "@/components/main/page/guide/MarkdownPage"
 import EntityQuerySheet from "@/components/main/queryBlocks/EntityQuerySheet"
 import PathQuerySheet from "@/components/main/queryBlocks/PathQuerySheet"
@@ -141,6 +142,10 @@ export default function AppContent() {
         ) : route.type === "policy-of-privacy" ? (
           <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-8 sm:py-10">
             <MarkdownPage doc="policy-of-privacy" />
+          </main>
+        ) : route.type === "help" ? (
+          <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-8 sm:py-10">
+            <HelpPage />
           </main>
         ) : isNotFound ? (
           <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
