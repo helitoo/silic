@@ -40,6 +40,7 @@
     "react-hook-form": "^7.86.0",
     "react-markdown": "^10.1.0",
     "react-markdown-mermaid": "^0.0.3",
+    "recharts": "^3.8.0",
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",

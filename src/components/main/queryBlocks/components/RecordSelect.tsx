@@ -12,6 +12,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+import type { Type } from "@/lib/types"
+
 export interface RecordSelectProps {
   value?: string
   templateId?: string | string[]
@@ -21,6 +23,8 @@ export interface RecordSelectProps {
   includeAll?: boolean
   allLabel?: string
   disabled?: boolean
+  allowedTypes?: Type[]
+  customRecords?: string[]
 }
 
 export function RecordSelect({
@@ -32,13 +36,47 @@ export function RecordSelect({
   includeAll = false,
   allLabel,
   disabled = false,
+  allowedTypes,
+  customRecords,
 }: RecordSelectProps) {
   const { templates } = useTemplate()
-  const { allRecordNames } = useEntity()
+  const { entities, allRecordNames } = useEntity()
   const { t } = useLang()
 
   const availableRecords = React.useMemo(() => {
+    if (customRecords) {
+      return customRecords
+    }
+
     const set = new Set<string>()
+    // Build map of record name -> types
+    const recordTypes = new Map<string, Set<Type>>()
+
+    for (const tpl of templates) {
+      if (Array.isArray(tpl.records)) {
+        for (const r of tpl.records) {
+          if (r.name) {
+            if (!recordTypes.has(r.name)) {
+              recordTypes.set(r.name, new Set())
+            }
+            if (r.type) recordTypes.get(r.name)?.add(r.type)
+          }
+        }
+      }
+    }
+
+    for (const ent of entities) {
+      if (Array.isArray(ent.records)) {
+        for (const r of ent.records) {
+          if (r.name) {
+            if (!recordTypes.has(r.name)) {
+              recordTypes.set(r.name, new Set())
+            }
+            if (r.type) recordTypes.get(r.name)?.add(r.type)
+          }
+        }
+      }
+    }
 
     const targetTemplateId = Array.isArray(templateId)
       ? templateId[0]
@@ -64,16 +102,18 @@ export function RecordSelect({
       }
     }
 
-    if (set.size === 0) {
-      set.add("username")
-      set.add("age")
-      set.add("companyName")
-      set.add("scores")
-      set.add("tags")
+    let recordsList = Array.from(set)
+
+    if (allowedTypes && allowedTypes.length > 0) {
+      recordsList = recordsList.filter((name) => {
+        const types = recordTypes.get(name)
+        if (!types || types.size === 0) return true
+        return Array.from(types).some((t) => allowedTypes.includes(t))
+      })
     }
 
-    return Array.from(set)
-  }, [templates, allRecordNames, templateId])
+    return recordsList
+  }, [templates, entities, allRecordNames, templateId, allowedTypes, customRecords])
 
   const effectiveAllLabel = allLabel || t("entitiesPage.allRecords")
   const displayLabel =

@@ -2,6 +2,8 @@
   "navbar": {
     "file": "File",
     "search": "Tìm kiếm",
+    "advanced": "Nâng cao",
+    "analysis": "Phân tích",
     "searchEntity": "Thực thể",
     "searchPath": "Đường đi",
     "new": "Tạo mới",
@@ -23,6 +25,26 @@
     "docsStorage": "Kiến trúc lưu trữ",
     "privacyPolicy": "Chính sách bảo mật",
     "termsOfService": "Điều khoản dịch vụ"
+  },
+  "analysisPage": {
+    "title": "Phân tích dữ liệu",
+    "selectRecord": "Chọn thông tin",
+    "selectRecordPlaceholder": "Chọn thông tin...",
+    "seeProportion": "Xem tỷ trọng",
+    "analyze": "Phân tích",
+    "noRecordSelected": "Chưa chọn thông tin",
+    "noRecordSelectedDesc": "Vui lòng chọn một thông tin và nhấn Phân tích.",
+    "noData": "Không có dữ liệu",
+    "noDataDesc": "Không tìm thấy giá trị nào cho thông tin này trong tập thực thể hiện tại.",
+    "totalSamples": "Tổng số thực thể",
+    "uniqueValues": "Giá trị riêng biệt",
+    "mean": "Trung bình",
+    "median": "Trung vị",
+    "min": "Nhỏ nhất",
+    "max": "Lớn nhất",
+    "count": "Số lượng",
+    "percentage": "Tỷ trọng (%)",
+    "histogram": "Biểu đồ phân phối"
   },
   "entitiesPage": {
     "title": "Thực thể",

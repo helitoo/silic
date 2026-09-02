@@ -2,6 +2,7 @@ import { TemplateProvider } from "@/contexts/TemplateContext"
 import { ConnectionProvider } from "@/contexts/ConnectionContext"
 import { EntityProvider } from "@/contexts/EntityContext"
 import { QueryProvider } from "@/contexts/QueryContext"
+import { AnalysisProvider } from "@/contexts/AnalysisContext"
 import { LangProvider } from "@/contexts/LangContext"
 import { RouterProvider } from "@/contexts/RouterContext"
 import { GoogleDrivePickerProvider } from "@/contexts/GoogleDrivePickerContext"
@@ -19,9 +20,11 @@ export function App() {
               <EntityProvider>
                 <ProjectStorageProvider>
                   <QueryProvider>
-                    <LongTextEditorProvider>
-                      <AppContent />
-                    </LongTextEditorProvider>
+                    <AnalysisProvider>
+                      <LongTextEditorProvider>
+                        <AppContent />
+                      </LongTextEditorProvider>
+                    </AnalysisProvider>
                   </QueryProvider>
                 </ProjectStorageProvider>
               </EntityProvider>

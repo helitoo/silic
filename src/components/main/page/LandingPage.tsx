@@ -196,14 +196,6 @@ export function LandingPage() {
       {/* 1. Hero Section */}
       <section className="relative mx-auto max-w-7xl px-4 pt-10 pb-16 sm:px-6 sm:pt-16 sm:pb-20 lg:px-8">
         <div className="flex flex-col items-center text-center">
-          {/* Logo & Version Badge */}
-          <div className="flex flex-col items-center gap-3">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/70 px-3 py-0.5 text-xs font-semibold text-primary shadow-xs backdrop-blur-md">
-              <Sparkles className="size-3 animate-pulse text-primary" />
-              <span>{t("landing.badge") || "v0.1.0"}</span>
-            </div>
-          </div>
-
           {/* Main Headline */}
           <h1 className="mt-5 max-w-4xl text-3xl font-extrabold tracking-tight text-foreground sm:text-5xl sm:leading-[1.18] lg:text-6xl">
             <span className="block">{t("landing.heroTitle1")}</span>

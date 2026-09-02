@@ -2,6 +2,8 @@
   "navbar": {
     "file": "File",
     "search": "Search",
+    "advanced": "Advanced",
+    "analysis": "Analysis",
     "searchEntity": "Entity",
     "searchPath": "Path",
     "new": "New",
@@ -23,6 +25,26 @@
     "docsStorage": "Storage Architecture",
     "privacyPolicy": "Privacy Policy",
     "termsOfService": "Terms of Service"
+  },
+  "analysisPage": {
+    "title": "Data Analysis",
+    "selectRecord": "Select Record",
+    "selectRecordPlaceholder": "Select record field...",
+    "seeProportion": "View Proportion",
+    "analyze": "Analyze",
+    "noRecordSelected": "No record selected",
+    "noRecordSelectedDesc": "Please select a record field and click Analyze.",
+    "noData": "No data available",
+    "noDataDesc": "No values found for this record across current entities.",
+    "totalSamples": "Total Samples",
+    "uniqueValues": "Distinct Values",
+    "mean": "Mean",
+    "median": "Median",
+    "min": "Min",
+    "max": "Max",
+    "count": "Count",
+    "percentage": "Proportion (%)",
+    "histogram": "Distribution Chart"
   },
   "entitiesPage": {
     "title": "Entities",

@@ -18,6 +18,7 @@ import { useRouter } from "@/contexts/RouterContext"
 import { useGoogleDrivePicker } from "@/contexts/GoogleDrivePickerContext"
 import { useProjectStorage } from "@/contexts/ProjectStorageContext"
 import { useQuery } from "@/contexts/QueryContext"
+import { useAnalysis } from "@/contexts/AnalysisContext"
 import { uploadSingleFile } from "@/lib/localFiles/uploadFile"
 import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -53,6 +54,7 @@ export default function Navbar() {
     clearProject,
   } = useProjectStorage()
   const { openEntityQuery, openPathQuery } = useQuery()
+  const { openAnalysis } = useAnalysis()
   const { install, isInstallable, isInstalled } = usePWAInstall()
 
   const [isClearAlertOpen, setIsClearAlertOpen] = React.useState(false)
@@ -132,12 +134,26 @@ export default function Navbar() {
         } else {
           openEntityQuery()
         }
+      } else if (
+        isMod &&
+        e.shiftKey &&
+        (e.key.toLowerCase() === "k" || e.code === "KeyK")
+      ) {
+        e.preventDefault()
+        e.stopPropagation()
+        openAnalysis()
       }
     }
     window.addEventListener("keydown", handleKeyDown, { capture: true })
     return () =>
       window.removeEventListener("keydown", handleKeyDown, { capture: true })
-  }, [handleUploadSilic, handleDownloadSilic, openEntityQuery, openPathQuery])
+  }, [
+    handleUploadSilic,
+    handleDownloadSilic,
+    openEntityQuery,
+    openPathQuery,
+    openAnalysis,
+  ])
 
   // Nav item actions
   const actions: NavItemActions = React.useMemo(
@@ -149,6 +165,7 @@ export default function Navbar() {
       onClear: () => setIsClearAlertOpen(true),
       onOpenEntityQuery: openEntityQuery,
       onOpenPathQuery: openPathQuery,
+      onOpenAnalysis: openAnalysis,
     }),
     [
       handleOpenPicker,
@@ -156,6 +173,7 @@ export default function Navbar() {
       handleDownloadSilic,
       openEntityQuery,
       openPathQuery,
+      openAnalysis,
     ]
   )
 

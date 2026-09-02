@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  BarChart3,
   CircleQuestionMark,
   Compass,
   Download,
@@ -22,6 +23,7 @@ export interface NavItemActions {
   onClear?: () => void
   onOpenEntityQuery?: () => void
   onOpenPathQuery?: () => void
+  onOpenAnalysis?: () => void
 }
 
 export interface NavItem {
@@ -69,7 +71,7 @@ export function getNavItems(
       ],
     },
     {
-      label: t("navbar.search") || "Search",
+      label: t("navbar.advanced") || "Nâng cao",
       subItems: [
         {
           icon: UsersRound,
@@ -82,6 +84,12 @@ export function getNavItems(
           label: t("navbar.searchPath") || "Path",
           kdb: "⌘ ⇧ Q",
           onClick: actions?.onOpenPathQuery,
+        },
+        {
+          icon: BarChart3,
+          label: t("navbar.analysis") || "Phân tích",
+          kdb: "⌘ ⇧ K",
+          onClick: actions?.onOpenAnalysis,
         },
       ],
     },

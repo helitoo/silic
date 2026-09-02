@@ -10,6 +10,7 @@ import GuidePage from "@/components/main/page/guide/GuidePage"
 import MarkdownPage from "@/components/main/page/guide/MarkdownPage"
 import EntityQuerySheet from "@/components/main/queryBlocks/EntityQuerySheet"
 import PathQuerySheet from "@/components/main/queryBlocks/PathQuerySheet"
+import AnalysisPage from "@/components/main/page/AnalysisPage"
 import { Tabs } from "@/components/ui/tabs"
 import { Toaster } from "@/components/ui/toast"
 import { SidebarProvider } from "@/components/ui/sidebar"
@@ -17,6 +18,7 @@ import { useEntity } from "@/contexts/EntityContext"
 import { useGoogleDrivePicker } from "@/contexts/GoogleDrivePickerContext"
 import { useProjectStorage } from "@/contexts/ProjectStorageContext"
 import { useQuery } from "@/contexts/QueryContext"
+import { useAnalysis } from "@/contexts/AnalysisContext"
 import { useRouter, type TabType } from "@/contexts/RouterContext"
 import { uploadSingleFile } from "@/lib/localFiles/uploadFile"
 import { useState, useMemo, useCallback } from "react"
@@ -48,6 +50,7 @@ export default function AppContent() {
     clearProject,
   } = useProjectStorage()
   const { openEntityQuery, openPathQuery } = useQuery()
+  const { openAnalysis } = useAnalysis()
 
   const [editingEntity, setEditingEntity] = useState<any>(null)
   const [isEntityDialogOpen, setIsEntityDialogOpen] = useState(false)
@@ -73,6 +76,7 @@ export default function AppContent() {
       onClear: () => setIsClearAlertOpen(true),
       onOpenEntityQuery: openEntityQuery,
       onOpenPathQuery: openPathQuery,
+      onOpenAnalysis: openAnalysis,
     }),
     [
       handleOpenPicker,
@@ -81,6 +85,7 @@ export default function AppContent() {
       newProject,
       openEntityQuery,
       openPathQuery,
+      openAnalysis,
     ]
   )
 
@@ -160,6 +165,7 @@ export default function AppContent() {
           <>
             <EntityQuerySheet />
             <PathQuerySheet />
+            <AnalysisPage />
           </>
         )}
         <Toaster />
