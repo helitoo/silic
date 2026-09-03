@@ -12,7 +12,6 @@ import {
   SidebarMenuButton,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { Kbd } from "@/components/ui/kbd"
 import {
   getNavItems,
   renderIcon,
@@ -48,7 +47,10 @@ export function AppMobileSidebar({ actions }: { actions?: NavItemActions }) {
   const displayedItems = React.useMemo(() => {
     if (isLanding) {
       return items.filter(
-        (g) => g.id === "guide" || g.label === t("navbar.guide") || g.label === "Guide"
+        (g) =>
+          g.id === "guide" ||
+          g.label === t("navbar.guide") ||
+          g.label === "Guide"
       )
     }
     return items
@@ -91,26 +93,22 @@ export function AppMobileSidebar({ actions }: { actions?: NavItemActions }) {
       <SidebarContent className="p-2">
         {displayedItems.map((group, gIdx) => (
           <SidebarGroup key={gIdx} className="py-1">
-            <SidebarGroupLabel className="text-xs font-semibold tracking-wider text-muted-foreground/80 uppercase">
+            <SidebarGroupLabel className="text-xs font-semibold tracking-wider text-muted-foreground/80 uppercase whitespace-nowrap">
               {renderLabel(group.label)}
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.subItems?.map((sub, sIdx) => {
-                  const shortcut = sub.kdb ?? sub.kbd
                   return (
                     <SidebarMenuItem key={sIdx}>
                       <SidebarMenuButton
                         onClick={() => handleItemClick(sub)}
-                        className="h-9 justify-between rounded-lg px-2.5 text-xs font-medium"
+                        className="h-9 justify-between rounded-lg px-2.5 text-xs font-medium whitespace-nowrap"
                       >
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex min-w-0 items-center gap-2.5 whitespace-nowrap">
                           {renderIcon(sub.icon)}
-                          <span>{renderLabel(sub.label)}</span>
+                          <span className="truncate whitespace-nowrap">{renderLabel(sub.label)}</span>
                         </div>
-                        {shortcut && (
-                          <Kbd className="text-[10px]">{shortcut}</Kbd>
-                        )}
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   )
