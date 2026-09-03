@@ -419,39 +419,90 @@ export type DriveStateAction =
 
 /**
  * Check if the application was opened or created by Google Drive™ (via "Open with" or "New" action).
+ * Supports official Google Drive state parameter specification (ids as array or comma-separated string, exportIds, resourceKeys dictionary, folderId, folderResourceKey, userId).
  */
 export function handleDriveState(): DriveStateAction | null {
   if (typeof window === "undefined") return null
-  const params = new URLSearchParams(window.location.search)
-  const state = params.get("state")
-  if (!state) return null
+
+  let stateStr = ""
+  try {
+    const params = new URLSearchParams(window.location.search)
+    stateStr = params.get("state") || ""
+
+    // Fallback: check query parameter inside location.hash if present
+    if (!stateStr && window.location.hash) {
+      const hashQueryIndex = window.location.hash.indexOf("?")
+      if (hashQueryIndex !== -1) {
+        const hashParams = new URLSearchParams(
+          window.location.hash.slice(hashQueryIndex)
+        )
+        stateStr = hashParams.get("state") || ""
+      }
+    }
+  } catch {
+    return null
+  }
+
+  if (!stateStr) return null
 
   try {
-    const parsed = JSON.parse(state)
-    if (
-      parsed.action === "open" &&
-      Array.isArray(parsed.ids) &&
-      parsed.ids.length > 0
-    ) {
-      const fileId = parsed.ids[0]
-      const resourceKey =
+    // Handle direct JSON string or double-encoded string
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(stateStr)
+    } catch {
+      parsed = JSON.parse(decodeURIComponent(stateStr))
+    }
+
+    if (!parsed || typeof parsed !== "object") return null
+
+    const action =
+      typeof parsed.action === "string" ? parsed.action.toLowerCase() : ""
+    const userId = parsed.userId ? String(parsed.userId) : undefined
+
+    // Extract file IDs from ids or exportIds (support Array or comma-separated string)
+    let rawIds: string[] = []
+    if (Array.isArray(parsed.ids)) {
+      rawIds = parsed.ids.map(String).filter(Boolean)
+    } else if (typeof parsed.ids === "string" && parsed.ids.trim()) {
+      rawIds = parsed.ids
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    } else if (Array.isArray(parsed.exportIds)) {
+      rawIds = parsed.exportIds.map(String).filter(Boolean)
+    } else if (typeof parsed.exportIds === "string" && parsed.exportIds.trim()) {
+      rawIds = parsed.exportIds
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    }
+
+    // 1. Open URL action
+    if (action === "open" || (rawIds.length > 0 && action !== "create")) {
+      if (rawIds.length === 0) return null
+      const fileId = rawIds[0]
+      const resourceKeysDict =
         parsed.resourceKeys && typeof parsed.resourceKeys === "object"
-          ? parsed.resourceKeys[fileId]
+          ? (parsed.resourceKeys as Record<string, unknown>)
           : undefined
-      const userId =
-        typeof parsed.userId === "string" ? parsed.userId : undefined
+      const resourceKey = resourceKeysDict?.[fileId]
+        ? String(resourceKeysDict[fileId])
+        : undefined
+
       return { action: "open", fileId, resourceKey, userId }
     }
-    if (parsed.action === "create") {
-      const folderId = parsed.folderId || "root"
-      const folderResourceKey =
-        typeof parsed.folderResourceKey === "string"
-          ? parsed.folderResourceKey
-          : undefined
-      const userId =
-        typeof parsed.userId === "string" ? parsed.userId : undefined
+
+    // 2. New URL (create) action
+    if (action === "create" || parsed.folderId || parsed.folderResourceKey) {
+      const folderId = parsed.folderId ? String(parsed.folderId) : "root"
+      const folderResourceKey = parsed.folderResourceKey
+        ? String(parsed.folderResourceKey)
+        : undefined
+
       return { action: "create", folderId, folderResourceKey, userId }
     }
+
     return null
   } catch {
     return null
