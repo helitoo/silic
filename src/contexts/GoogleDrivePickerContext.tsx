@@ -1,7 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import * as React from "react"
 import {
-  HardDrive,
   FolderOpen,
   FolderPlus,
   Folder,
@@ -250,12 +249,26 @@ export function GoogleDrivePickerProvider({
       customSuccessTitle?: string
     }) => {
       const {
-        parentFolderId = "root",
+        parentFolderId,
         folderResourceKey,
         isSaveAs = false,
         pendingShare = false,
         customSuccessTitle,
       } = options
+
+      if (!parentFolderId || parentFolderId === "root") {
+        toast.add({
+          type: "warning",
+          title:
+            t("googleDrive.rootNotAllowedTitle") ||
+            "Không thể lưu ở thư mục gốc",
+          description:
+            t("googleDrive.rootNotAllowedDesc") ||
+            "Vui lòng chọn hoặc tạo một thư mục cụ thể trên Google Drive™ để lưu tệp.",
+        })
+        openSaveLocationDialog(isSaveAs, pendingShare)
+        return
+      }
 
       showLoading(t("googleDrive.saving") || "Đang lưu vào Google Drive™...")
       setIsDriveLoading(true)
@@ -373,8 +386,23 @@ export function GoogleDrivePickerProvider({
 
             if (data.action === "picked" && data.docs && data.docs.length > 0) {
               const selectedFolder = data.docs[0]
-              const parentFolderId = selectedFolder.id || "root"
+              const parentFolderId = selectedFolder.id
               const folderResourceKey = selectedFolder.resourceKey || undefined
+
+              if (!parentFolderId || parentFolderId === "root") {
+                cleanup()
+                toast.add({
+                  type: "warning",
+                  title:
+                    t("googleDrive.rootNotAllowedTitle") ||
+                    "Không thể lưu ở thư mục gốc",
+                  description:
+                    t("googleDrive.rootNotAllowedDesc") ||
+                    "Vui lòng chọn hoặc tạo một thư mục cụ thể trên Google Drive™ để lưu tệp.",
+                })
+                openSaveLocationDialog(isSaveAs, pendingShare)
+                return
+              }
 
               await performSaveToLocation({
                 parentFolderId,
@@ -916,33 +944,45 @@ export function GoogleDrivePickerProvider({
           // Reset workspace to blank canvas
           await newProject()
 
-          const defaultName = "Untitled.silic"
-          const emptyBuffer = createEmptySilicBuffer("Untitled")
-          const blob = new Blob([emptyBuffer], {
-            type: "application/octet-stream",
-          })
+          if (driveState.folderId && driveState.folderId !== "root") {
+            const defaultName = "Untitled.silic"
+            const emptyBuffer = createEmptySilicBuffer("Untitled")
+            const blob = new Blob([emptyBuffer], {
+              type: "application/octet-stream",
+            })
 
-          const res = await saveToDrive(
-            blob,
-            defaultName,
-            token,
-            undefined,
-            driveState.folderId,
-            driveState.folderResourceKey
-          )
+            const res = await saveToDrive(
+              blob,
+              defaultName,
+              token,
+              undefined,
+              driveState.folderId,
+              driveState.folderResourceKey
+            )
 
-          if (res.id) {
-            setDriveFileId(res.id)
+            if (res.id) {
+              setDriveFileId(res.id)
+            }
+            navigate("/d")
+
+            toast.add({
+              type: "success",
+              title:
+                t("googleDrive.createSuccess") ||
+                "Đã tạo tệp mới trên Google Drive™",
+              description: res.name || defaultName,
+            })
+          } else {
+            navigate("/d")
+            toast.add({
+              type: "info",
+              title:
+                t("googleDrive.newProjectReadyTitle") || "Dự án mới",
+              description:
+                t("googleDrive.newProjectReadyDesc") ||
+                "Dự án mới đã sẵn sàng. Hãy lưu vào một thư mục trên Google Drive khi hoàn tất.",
+            })
           }
-          navigate("/d")
-
-          toast.add({
-            type: "success",
-            title:
-              t("googleDrive.createSuccess") ||
-              "Đã tạo tệp mới trên Google Drive™",
-            description: res.name || defaultName,
-          })
         }
       } catch (err: unknown) {
         setDriveFileId(null)
@@ -1073,31 +1113,7 @@ export function GoogleDrivePickerProvider({
 
           {!isNewFolderStep ? (
             <div className="flex flex-col gap-2.5 py-2">
-              {/* Option 1: Lưu tại folder gốc */}
-              <button
-                type="button"
-                className="group flex cursor-pointer items-center gap-3 rounded-lg border border-border/60 bg-card p-3 text-left transition-all hover:border-primary/60 hover:bg-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                onClick={async () => {
-                  const isSaveAs = saveLocationDialog?.isSaveAs ?? false
-                  const pendingShare =
-                    saveLocationDialog?.pendingShareAfterSave ?? false
-                  closeSaveLocationDialog()
-                  await performSaveToLocation({
-                    parentFolderId: "root",
-                    isSaveAs,
-                    pendingShare,
-                  })
-                }}
-              >
-                <div className="mt-0.5 rounded-md bg-primary/10 p-2 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                  <HardDrive className="h-4 w-4" />
-                </div>
-                <div className="text-xs font-medium text-foreground">
-                  {t("googleDrive.saveRootOption") || "Lưu tại folder gốc"}
-                </div>
-              </button>
-
-              {/* Option 2: Chọn folder đã có */}
+              {/* Option 1: Chọn folder đã có */}
               <button
                 type="button"
                 className="group flex cursor-pointer items-center gap-3 rounded-lg border border-border/60 bg-card p-3 text-left transition-all hover:border-primary/60 hover:bg-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -1112,12 +1128,18 @@ export function GoogleDrivePickerProvider({
                 <div className="mt-0.5 rounded-md bg-primary/10 p-2 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                   <FolderOpen className="h-4 w-4" />
                 </div>
-                <div className="text-xs font-medium text-foreground">
-                  {t("googleDrive.saveExistingOption") || "Chọn folder đã có"}
+                <div>
+                  <div className="text-xs font-medium text-foreground">
+                    {t("googleDrive.saveExistingOption") || "Chọn folder đã có"}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {t("googleDrive.saveExistingOptionDesc") ||
+                      "Mở Google Drive™ Picker để chọn thư mục hiện có"}
+                  </div>
                 </div>
               </button>
 
-              {/* Option 3: Tạo folder mới */}
+              {/* Option 2: Tạo folder mới */}
               <button
                 type="button"
                 className="group flex cursor-pointer items-center gap-3 rounded-lg border border-border/60 bg-card p-3 text-left transition-all hover:border-primary/60 hover:bg-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -1128,8 +1150,14 @@ export function GoogleDrivePickerProvider({
                 <div className="mt-0.5 rounded-md bg-primary/10 p-2 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                   <FolderPlus className="h-4 w-4" />
                 </div>
-                <div className="text-xs font-medium text-foreground">
-                  {t("googleDrive.saveNewFolderOption") || "Tạo folder mới"}
+                <div>
+                  <div className="text-xs font-medium text-foreground">
+                    {t("googleDrive.saveNewFolderOption") || "Tạo folder mới"}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {t("googleDrive.saveNewFolderOptionDesc") ||
+                      "Tạo một thư mục mới trên Drive và lưu tệp vào đó"}
+                  </div>
                 </div>
               </button>
             </div>

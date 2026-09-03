@@ -250,11 +250,14 @@ export async function saveToDrive(
   }
 
   if (!existingFileId) {
-    if (parentFolderId && parentFolderId !== "root") {
-      metadata.parents = [parentFolderId]
-    } else {
-      metadata.parents = ["root"]
+    if (!parentFolderId || parentFolderId === "root") {
+      throw new DriveApiError(
+        "Cannot save file directly to the root folder. A target folder is required.",
+        400,
+        "ROOT_SAVE_DISALLOWED"
+      )
     }
+    metadata.parents = [parentFolderId]
   }
 
   const form = new FormData()
@@ -427,10 +430,11 @@ export function handleDriveState(): DriveStateAction | null {
   let stateStr = ""
   try {
     const params = new URLSearchParams(window.location.search)
-    stateStr = params.get("state") || ""
-
-    // Fallback: check query parameter inside location.hash if present
-    if (!stateStr && window.location.hash) {
+    const queryState = params.get("state")
+    if (queryState) {
+      stateStr = queryState
+    } else if (window.location.hash) {
+      // Fallback: check query parameter inside location.hash if present
       const hashQueryIndex = window.location.hash.indexOf("?")
       if (hashQueryIndex !== -1) {
         const hashParams = new URLSearchParams(
