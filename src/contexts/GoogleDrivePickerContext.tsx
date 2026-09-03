@@ -1,5 +1,16 @@
+/* eslint-disable react-refresh/only-export-components */
 import * as React from "react"
-import rawUseDrivePicker from "react-google-drive-picker"
+import {
+  HardDrive,
+  FolderOpen,
+  FolderPlus,
+  Folder,
+  ArrowLeft,
+} from "lucide-react"
+import useDrivePicker, {
+  type ViewIdOptions,
+  type PickerCallback,
+} from "@/hooks/useDrivePicker"
 import { useProjectStorage } from "./ProjectStorageContext"
 import { useLang } from "./LangContext"
 import { useRouter } from "./RouterContext"
@@ -11,6 +22,7 @@ import {
   downloadDriveFile,
   getDriveFileMetadata,
   saveToDrive,
+  createDriveFolder,
   shareViewOnly,
   handleDriveState,
   createEmptySilicBuffer,
@@ -27,18 +39,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-
-// Handle CJS / ESM interop where Vite may wrap the default export in .default
-const useDrivePicker = (
-  typeof rawUseDrivePicker === "function"
-    ? rawUseDrivePicker
-    : ((rawUseDrivePicker as unknown as { default?: typeof rawUseDrivePicker })
-        ?.default ?? rawUseDrivePicker)
-) as typeof rawUseDrivePicker
-
-export type ViewIdOptions = NonNullable<
-  Parameters<ReturnType<typeof rawUseDrivePicker>[0]>[0]["viewId"]
->
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 export interface GoogleDrivePickerContextType {
   handleOpenPicker: (
@@ -109,6 +120,12 @@ function buildFolderView() {
   return view
 }
 
+interface SaveLocationDialogState {
+  isOpen: boolean
+  isSaveAs: boolean
+  pendingShareAfterSave: boolean
+}
+
 export const GoogleDrivePickerContext =
   React.createContext<GoogleDrivePickerContextType | null>(null)
 
@@ -122,6 +139,7 @@ export function GoogleDrivePickerProvider({
   const {
     driveFileId,
     setDriveFileId,
+    fileName,
     importProjectSilic,
     generateSilicZipBuffer,
     newProject,
@@ -134,12 +152,371 @@ export function GoogleDrivePickerProvider({
   const [pendingDriveAction, setPendingDriveAction] =
     React.useState<DriveStateAction | null>(null)
 
+  // Save location choice dialog state
+  const [saveLocationDialog, setSaveLocationDialog] =
+    React.useState<SaveLocationDialogState | null>(null)
+  const [isNewFolderStep, setIsNewFolderStep] = React.useState(false)
+  const [newFolderName, setNewFolderName] = React.useState("")
+  const [parentFolder, setParentFolder] = React.useState<{
+    id: string
+    name: string
+    resourceKey?: string
+  } | null>(null)
+
   // Sync token from Picker auth if returned
   React.useEffect(() => {
     if (authRes?.access_token) {
       setCachedGoogleAccessToken(authRes.access_token, authRes.expires_in)
     }
   }, [authRes])
+
+  // Execute view-only file share on Google Drive
+  const executeShareFlow = React.useCallback(
+    async (fileId: string, token: string) => {
+      showLoading(
+        t("googleDrive.configuringPermissions") ||
+          "Đang thiết lập quyền chia sẻ..."
+      )
+      setIsDriveLoading(true)
+
+      try {
+        await shareViewOnly(fileId, token)
+
+        const shareLink = `https://drive.google.com/file/d/${fileId}/view?usp=sharing`
+        const copied = await copyToClipboard(shareLink)
+
+        if (copied) {
+          toast.add({
+            type: "success",
+            title:
+              t("googleDrive.shareSuccess") || "Đã sao chép liên kết chia sẻ",
+            description:
+              t("googleDrive.shareSuccessDesc") ||
+              "Bất kỳ ai có liên kết đều có thể xem tệp này (Chỉ xem).",
+          })
+        } else {
+          toast.add({
+            type: "info",
+            title: t("googleDrive.shareCreated") || "Đã tạo liên kết chia sẻ",
+            description: shareLink,
+          })
+        }
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err)
+        console.error("Failed to share Google Drive™ file:", err)
+        toast.add({
+          type: "error",
+          title:
+            t("googleDrive.shareError") ||
+            "Không thể chia sẻ tệp Google Drive™",
+          description: errorMsg,
+        })
+      } finally {
+        setIsDriveLoading(false)
+        hideLoading()
+      }
+    },
+    [hideLoading, showLoading, t]
+  )
+
+  // Open Save Location Dialog
+  const openSaveLocationDialog = React.useCallback(
+    (isSaveAs = false, pendingShareAfterSave = false) => {
+      setIsNewFolderStep(false)
+      setNewFolderName(fileName || "Silic Projects")
+      setParentFolder(null)
+      setSaveLocationDialog({
+        isOpen: true,
+        isSaveAs,
+        pendingShareAfterSave,
+      })
+    },
+    [fileName]
+  )
+
+  // Close Save Location Dialog
+  const closeSaveLocationDialog = React.useCallback(() => {
+    setSaveLocationDialog(null)
+    setIsNewFolderStep(false)
+    setParentFolder(null)
+  }, [])
+
+  // Core helper to save file to a specific destination folder
+  const performSaveToLocation = React.useCallback(
+    async (options: {
+      parentFolderId?: string
+      folderResourceKey?: string
+      isSaveAs?: boolean
+      pendingShare?: boolean
+      customSuccessTitle?: string
+    }) => {
+      const {
+        parentFolderId = "root",
+        folderResourceKey,
+        isSaveAs = false,
+        pendingShare = false,
+        customSuccessTitle,
+      } = options
+
+      showLoading(t("googleDrive.saving") || "Đang lưu vào Google Drive™...")
+      setIsDriveLoading(true)
+
+      try {
+        const token = authRes?.access_token || (await getGoogleAccessToken())
+        const { buffer, fileName: projectName } = await generateSilicZipBuffer()
+        const blob = new Blob([buffer], {
+          type: "application/octet-stream",
+        })
+
+        const res = await saveToDrive(
+          blob,
+          projectName,
+          token,
+          undefined,
+          parentFolderId,
+          folderResourceKey
+        )
+
+        if (res.id) {
+          setDriveFileId(res.id)
+        }
+
+        toast.add({
+          type: "success",
+          title:
+            customSuccessTitle ||
+            (isSaveAs
+              ? t("googleDrive.saveAsSuccess") ||
+                "Đã tạo và lưu tệp mới trên Google Drive™"
+              : t("googleDrive.saveSuccess") || "Đã lưu vào Google Drive™"),
+          description: `${projectName}.silic`,
+        })
+
+        // If user initiated share flow prior to saving, continue share immediately
+        if (pendingShare && res.id) {
+          await executeShareFlow(res.id, token)
+        }
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err)
+        console.error("Failed to save to Google Drive™:", err)
+        toast.add({
+          type: "error",
+          title: t("googleDrive.saveError") || "Lưu vào Google Drive™ thất bại",
+          description: errorMsg,
+        })
+      } finally {
+        setIsDriveLoading(false)
+        hideLoading()
+      }
+    },
+    [
+      authRes,
+      executeShareFlow,
+      generateSilicZipBuffer,
+      hideLoading,
+      setDriveFileId,
+      showLoading,
+      t,
+    ]
+  )
+
+  // Open Google Drive Picker to select an existing folder
+  const openPickerForExistingFolder = React.useCallback(
+    (isSaveAs: boolean, pendingShare: boolean) => {
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+      const developerKey = import.meta.env.VITE_GOOGLE_API_KEY
+
+      if (!clientId || !developerKey) {
+        toast.add({
+          type: "error",
+          title: "Google Drive™ Error",
+          description:
+            "Missing VITE_GOOGLE_CLIENT_ID or VITE_GOOGLE_API_KEY in environment variables",
+        })
+        return
+      }
+
+      const customFolderView = buildFolderView()
+      const customViews = [customFolderView].filter(Boolean) as unknown[]
+
+      const cleanup = () => {
+        setIsDriveLoading(false)
+        hideLoading()
+      }
+
+      try {
+        openPicker({
+          title: "Select a folder",
+          clientId,
+          developerKey,
+          token: authRes?.access_token || undefined,
+          viewId: "FOLDERS",
+          showUploadView: false,
+          showUploadFolders: true,
+          supportDrives: true,
+          multiselect: false,
+          customViews:
+            customViews.length > 0 ? (customViews as unknown[]) : undefined,
+          disableDefaultView: true,
+          setSelectFolderEnabled: true,
+          setIncludeFolders: true,
+          setOrigin: window.location.origin,
+          customScopes: ["https://www.googleapis.com/auth/drive.file"],
+          callbackFunction: async (data: PickerCallback) => {
+            if (data.action === "cancel") {
+              cleanup()
+              return
+            }
+
+            if (data.action === "loaded") {
+              return
+            }
+
+            if (data.action === "picked" && data.docs && data.docs.length > 0) {
+              const selectedFolder = data.docs[0]
+              const parentFolderId = selectedFolder.id || "root"
+              const folderResourceKey = selectedFolder.resourceKey || undefined
+
+              await performSaveToLocation({
+                parentFolderId,
+                folderResourceKey,
+                isSaveAs,
+                pendingShare,
+              })
+            }
+          },
+        })
+      } catch (err: unknown) {
+        cleanup()
+        const errorMsg = err instanceof Error ? err.message : String(err)
+        console.error("Failed to open Folder Picker for Existing Folder:", err)
+        toast.add({
+          type: "error",
+          title: "Google Drive™ Picker Error",
+          description: errorMsg,
+        })
+      }
+    },
+    [authRes, hideLoading, openPicker, performSaveToLocation]
+  )
+
+  // Open Google Drive Picker to select parent location when creating a new folder
+  const openPickerForParentFolder = React.useCallback(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+    const developerKey = import.meta.env.VITE_GOOGLE_API_KEY
+
+    if (!clientId || !developerKey) {
+      toast.add({
+        type: "error",
+        title: "Google Drive™ Error",
+        description:
+          "Missing VITE_GOOGLE_CLIENT_ID or VITE_GOOGLE_API_KEY in environment variables",
+      })
+      return
+    }
+
+    const customFolderView = buildFolderView()
+    const customViews = [customFolderView].filter(Boolean) as unknown[]
+
+    try {
+      openPicker({
+        title: "Select a folder",
+        clientId,
+        developerKey,
+        token: authRes?.access_token || undefined,
+        viewId: "FOLDERS",
+        showUploadView: false,
+        showUploadFolders: true,
+        supportDrives: true,
+        multiselect: false,
+        customViews:
+          customViews.length > 0 ? (customViews as unknown[]) : undefined,
+        disableDefaultView: true,
+        setSelectFolderEnabled: true,
+        setIncludeFolders: true,
+        setOrigin: window.location.origin,
+        customScopes: ["https://www.googleapis.com/auth/drive.file"],
+        callbackFunction: async (data: PickerCallback) => {
+          if (data.action === "picked" && data.docs && data.docs.length > 0) {
+            const doc = data.docs[0]
+            setParentFolder({
+              id: doc.id || "root",
+              name: doc.name || "My Drive",
+              resourceKey: doc.resourceKey || undefined,
+            })
+          }
+        },
+      })
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      console.error("Failed to open Parent Folder Picker:", err)
+      toast.add({
+        type: "error",
+        title: "Google Drive™ Picker Error",
+        description: errorMsg,
+      })
+    }
+  }, [authRes, openPicker])
+
+  // Handle creating a new folder and saving file inside it
+  const handleCreateFolderAndSave = React.useCallback(async () => {
+    const folderNameToCreate =
+      newFolderName.trim() || fileName || "Silic Projects"
+    const isSaveAs = saveLocationDialog?.isSaveAs ?? false
+    const pendingShare = saveLocationDialog?.pendingShareAfterSave ?? false
+
+    closeSaveLocationDialog()
+
+    showLoading(
+      t("googleDrive.creatingFolder") ||
+        "Đang tạo thư mục trên Google Drive™..."
+    )
+    setIsDriveLoading(true)
+
+    try {
+      const token = authRes?.access_token || (await getGoogleAccessToken())
+      const createdFolder = await createDriveFolder(
+        folderNameToCreate,
+        token,
+        parentFolder?.id || "root",
+        parentFolder?.resourceKey
+      )
+
+      await performSaveToLocation({
+        parentFolderId: createdFolder.id,
+        isSaveAs,
+        pendingShare,
+        customSuccessTitle: isSaveAs
+          ? t("googleDrive.saveAsSuccess") ||
+            "Đã tạo và lưu tệp mới trên Google Drive™"
+          : t("googleDrive.saveSuccess") || "Đã lưu vào Google Drive™",
+      })
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      console.error("Failed to create folder on Google Drive™:", err)
+      toast.add({
+        type: "error",
+        title:
+          t("googleDrive.createFolderError") ||
+          "Không thể tạo thư mục trên Google Drive™",
+        description: errorMsg,
+      })
+    } finally {
+      setIsDriveLoading(false)
+      hideLoading()
+    }
+  }, [
+    authRes,
+    closeSaveLocationDialog,
+    fileName,
+    hideLoading,
+    newFolderName,
+    parentFolder,
+    performSaveToLocation,
+    saveLocationDialog,
+    showLoading,
+    t,
+  ])
 
   // Handle opening file with Google Drive™ Picker
   const handleOpenPicker = React.useCallback(
@@ -180,6 +557,10 @@ export function GoogleDrivePickerProvider({
 
       try {
         openPicker({
+          title:
+            showUploadFolders || viewId === "FOLDERS"
+              ? "Select a folder"
+              : undefined,
           clientId,
           developerKey,
           token: authRes?.access_token || undefined,
@@ -189,12 +570,13 @@ export function GoogleDrivePickerProvider({
           supportDrives,
           multiselect,
           customViews:
-            customViews.length > 0 ? (customViews as any) : undefined,
+            customViews.length > 0 ? (customViews as unknown[]) : undefined,
+          disableDefaultView: customViews.length > 0,
           setSelectFolderEnabled: showUploadFolders,
           setIncludeFolders: true,
           setOrigin: window.location.origin,
           customScopes: ["https://www.googleapis.com/auth/drive.file"],
-          callbackFunction: async (data: any) => {
+          callbackFunction: async (data: PickerCallback) => {
             if (data.action === "cancel") {
               cleanup()
               return
@@ -319,7 +701,7 @@ export function GoogleDrivePickerProvider({
     ]
   )
 
-  // Save to Google Drive™
+  // Save to Google Drive™ (handles direct save vs 3-option modal)
   const handleSaveToDrive = React.useCallback(
     async (isSaveAs = false) => {
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -335,6 +717,7 @@ export function GoogleDrivePickerProvider({
         return
       }
 
+      // Direct save when file is already linked to Google Drive and not Save As
       if (!isSaveAs && driveFileId) {
         showLoading(t("googleDrive.saving") || "Đang lưu vào Google Drive™...")
         setIsDriveLoading(true)
@@ -356,13 +739,13 @@ export function GoogleDrivePickerProvider({
                   t("googleDrive.fileTrashedSaveDesc") ||
                   "Tệp trên Google Drive™ hiện đang ở trong thùng rác. Vui lòng chọn vị trí lưu mới.",
               })
-              handleSaveToDrive(true)
+              openSaveLocationDialog(true, false)
               return
             }
           } catch {
             // If metadata check fails with 404, file was permanently deleted
             setDriveFileId(null)
-            handleSaveToDrive(true)
+            openSaveLocationDialog(true, false)
             return
           }
 
@@ -395,117 +778,14 @@ export function GoogleDrivePickerProvider({
         return
       }
 
-      // "Save As" flow or initial save
-      const customFolderView = buildFolderView()
-      const customViews = [customFolderView].filter(Boolean) as unknown[]
-
-      const cleanup = () => {
-        setIsDriveLoading(false)
-        hideLoading()
-      }
-
-      try {
-        openPicker({
-          clientId,
-          developerKey,
-          token: authRes?.access_token || undefined,
-          viewId: "FOLDERS",
-          showUploadView: false,
-          showUploadFolders: true,
-          supportDrives: true,
-          multiselect: false,
-          customViews:
-            customViews.length > 0 ? (customViews as any) : undefined,
-          setSelectFolderEnabled: true,
-          setIncludeFolders: true,
-          setOrigin: window.location.origin,
-          customScopes: ["https://www.googleapis.com/auth/drive.file"],
-          callbackFunction: async (data: any) => {
-            if (data.action === "cancel") {
-              cleanup()
-              return
-            }
-
-            if (data.action === "loaded") {
-              return
-            }
-
-            if (data.action === "picked" && data.docs && data.docs.length > 0) {
-              const selectedFolder = data.docs[0]
-              const parentFolderId = selectedFolder.id || "root"
-              const folderResourceKey = selectedFolder.resourceKey || undefined
-
-              showLoading(
-                t("googleDrive.saving") || "Đang lưu vào Google Drive™..."
-              )
-              setIsDriveLoading(true)
-
-              try {
-                const token =
-                  authRes?.access_token || (await getGoogleAccessToken())
-                const { buffer, fileName: projectName } =
-                  await generateSilicZipBuffer()
-                const blob = new Blob([buffer], {
-                  type: "application/octet-stream",
-                })
-
-                const res = await saveToDrive(
-                  blob,
-                  projectName,
-                  token,
-                  undefined,
-                  parentFolderId,
-                  folderResourceKey
-                )
-
-                if (res.id) {
-                  setDriveFileId(res.id)
-                }
-
-                toast.add({
-                  type: "success",
-                  title: isSaveAs
-                    ? t("googleDrive.saveAsSuccess") ||
-                      "Đã tạo và lưu tệp mới trên Google Drive™"
-                    : t("googleDrive.saveSuccess") ||
-                      "Đã lưu vào Google Drive™",
-                  description: `${projectName}.silic`,
-                })
-              } catch (err: unknown) {
-                const errorMsg =
-                  err instanceof Error ? err.message : String(err)
-                console.error("Failed to save as to Google Drive™:", err)
-                toast.add({
-                  type: "error",
-                  title:
-                    t("googleDrive.saveError") ||
-                    "Lưu vào Google Drive™ thất bại",
-                  description: errorMsg,
-                })
-              } finally {
-                setIsDriveLoading(false)
-                hideLoading()
-              }
-            }
-          },
-        })
-      } catch (err: unknown) {
-        cleanup()
-        const errorMsg = err instanceof Error ? err.message : String(err)
-        console.error("Failed to open Folder Picker for Save As:", err)
-        toast.add({
-          type: "error",
-          title: "Google Drive™ Picker Error",
-          description: errorMsg,
-        })
-      }
+      // First-time save or Save As: open dialog for 3 options
+      openSaveLocationDialog(isSaveAs, false)
     },
     [
-      authRes,
       driveFileId,
       generateSilicZipBuffer,
       hideLoading,
-      openPicker,
+      openSaveLocationDialog,
       setDriveFileId,
       showLoading,
       t,
@@ -514,58 +794,18 @@ export function GoogleDrivePickerProvider({
 
   // Share file on Google Drive™ (view-only link copied to clipboard)
   const handleShareDrive = React.useCallback(async () => {
+    // If not saved yet, prompt Save Location flow first then share automatically
+    if (!driveFileId) {
+      openSaveLocationDialog(false, true)
+      return
+    }
+
     showLoading(t("googleDrive.sharing") || "Đang chuẩn bị chia sẻ...")
     setIsDriveLoading(true)
 
     try {
       const token = await getGoogleAccessToken()
-      let currentFileId = driveFileId
-
-      if (!currentFileId) {
-        showLoading(
-          t("googleDrive.savingBeforeShare") ||
-            "Đang lưu lên Google Drive™ trước khi chia sẻ..."
-        )
-        const { buffer, fileName: projectName } = await generateSilicZipBuffer()
-        const blob = new Blob([buffer], {
-          type: "application/octet-stream",
-        })
-
-        const res = await saveToDrive(blob, projectName, token)
-        if (res.id) {
-          currentFileId = res.id
-          setDriveFileId(res.id)
-        } else {
-          throw new Error("Failed to create file on Google Drive™ for sharing")
-        }
-      }
-
-      showLoading(
-        t("googleDrive.configuringPermissions") ||
-          "Đang thiết lập quyền chia sẻ..."
-      )
-
-      await shareViewOnly(currentFileId, token)
-
-      const shareLink = `https://drive.google.com/file/d/${currentFileId}/view?usp=sharing`
-      const copied = await copyToClipboard(shareLink)
-
-      if (copied) {
-        toast.add({
-          type: "success",
-          title:
-            t("googleDrive.shareSuccess") || "Đã sao chép liên kết chia sẻ",
-          description:
-            t("googleDrive.shareSuccessDesc") ||
-            "Bất kỳ ai có liên kết đều có thể xem tệp này (Chỉ xem).",
-        })
-      } else {
-        toast.add({
-          type: "info",
-          title: t("googleDrive.shareCreated") || "Đã tạo liên kết chia sẻ",
-          description: shareLink,
-        })
-      }
+      await executeShareFlow(driveFileId, token)
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err)
       console.error("Failed to share Google Drive™ file:", err)
@@ -581,14 +821,14 @@ export function GoogleDrivePickerProvider({
     }
   }, [
     driveFileId,
-    generateSilicZipBuffer,
+    executeShareFlow,
     hideLoading,
-    setDriveFileId,
+    openSaveLocationDialog,
     showLoading,
     t,
   ])
 
-  // Execute drive action (open or create)
+  // Execute drive action (open or create from URL state parameter)
   const executeDriveAction = React.useCallback(
     async (driveState: DriveStateAction, isUserGesture = false) => {
       if (driveState.action === "open") {
@@ -784,7 +1024,10 @@ export function GoogleDrivePickerProvider({
       // ignore
     }
 
-    executeDriveAction(driveState, false)
+    const timer = setTimeout(() => {
+      executeDriveAction(driveState, false)
+    }, 0)
+    return () => clearTimeout(timer)
   }, [executeDriveAction])
 
   const contextValue = React.useMemo<GoogleDrivePickerContextType>(
@@ -809,6 +1052,183 @@ export function GoogleDrivePickerProvider({
   return (
     <GoogleDrivePickerContext.Provider value={contextValue}>
       {children}
+
+      {/* Google Drive Save Location Options Dialog */}
+      <Dialog
+        open={!!saveLocationDialog?.isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeSaveLocationDialog()
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {isNewFolderStep
+                ? t("googleDrive.saveNewFolderOption") || "Tạo folder mới"
+                : t("googleDrive.saveLocationTitle") ||
+                  "Chọn vị trí lưu trên Google Drive™"}
+            </DialogTitle>
+            <DialogDescription>
+              {isNewFolderStep
+                ? t("googleDrive.saveNewFolderOptionDesc") ||
+                  "Tạo một thư mục mới trên Drive và lưu tệp vào đó"
+                : t("googleDrive.saveLocationDesc") ||
+                  "Vui lòng chọn phương thức lưu tệp dự án:"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {!isNewFolderStep ? (
+            <div className="flex flex-col gap-2.5 py-2">
+              {/* Option 1: Lưu tại folder gốc */}
+              <button
+                type="button"
+                className="group flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 bg-card p-3 text-left transition-all hover:border-primary/60 hover:bg-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={async () => {
+                  const isSaveAs = saveLocationDialog?.isSaveAs ?? false
+                  const pendingShare =
+                    saveLocationDialog?.pendingShareAfterSave ?? false
+                  closeSaveLocationDialog()
+                  await performSaveToLocation({
+                    parentFolderId: "root",
+                    isSaveAs,
+                    pendingShare,
+                  })
+                }}
+              >
+                <div className="mt-0.5 rounded-md bg-primary/10 p-2 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                  <HardDrive className="h-4 w-4" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs font-medium text-foreground">
+                    {t("googleDrive.saveRootOption") || "Lưu tại folder gốc"}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-muted-foreground">
+                    {t("googleDrive.saveRootOptionDesc") ||
+                      "Lưu trực tiếp vào thư mục gốc My Drive (không cần Picker API)"}
+                  </div>
+                </div>
+              </button>
+
+              {/* Option 2: Chọn folder đã có */}
+              <button
+                type="button"
+                className="group flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 bg-card p-3 text-left transition-all hover:border-primary/60 hover:bg-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={() => {
+                  const isSaveAs = saveLocationDialog?.isSaveAs ?? false
+                  const pendingShare =
+                    saveLocationDialog?.pendingShareAfterSave ?? false
+                  closeSaveLocationDialog()
+                  openPickerForExistingFolder(isSaveAs, pendingShare)
+                }}
+              >
+                <div className="mt-0.5 rounded-md bg-primary/10 p-2 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                  <FolderOpen className="h-4 w-4" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs font-medium text-foreground">
+                    {t("googleDrive.saveExistingOption") || "Chọn folder đã có"}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-muted-foreground">
+                    {t("googleDrive.saveExistingOptionDesc") ||
+                      "Mở Google Drive™ Picker để chọn thư mục hiện có"}
+                  </div>
+                </div>
+              </button>
+
+              {/* Option 3: Tạo folder mới */}
+              <button
+                type="button"
+                className="group flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 bg-card p-3 text-left transition-all hover:border-primary/60 hover:bg-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={() => {
+                  setIsNewFolderStep(true)
+                }}
+              >
+                <div className="mt-0.5 rounded-md bg-primary/10 p-2 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                  <FolderPlus className="h-4 w-4" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs font-medium text-foreground">
+                    {t("googleDrive.saveNewFolderOption") || "Tạo folder mới"}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-muted-foreground">
+                    {t("googleDrive.saveNewFolderOptionDesc") ||
+                      "Tạo một thư mục mới trên Drive và lưu tệp vào đó"}
+                  </div>
+                </div>
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 py-2">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="drive-new-folder-name" className="text-xs">
+                  {t("googleDrive.newFolderNameLabel") || "Tên thư mục mới"}
+                </Label>
+                <Input
+                  id="drive-new-folder-name"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder={
+                    t("googleDrive.newFolderNamePlaceholder") ||
+                    "Nhập tên thư mục..."
+                  }
+                  autoFocus
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs text-muted-foreground">
+                  {t("googleDrive.parentFolderLabel") || "Vị trí tạo thư mục"}
+                </Label>
+                <div className="flex items-center justify-between rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 text-xs">
+                  <div className="flex items-center gap-2 truncate text-foreground">
+                    <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate font-medium">
+                      {parentFolder
+                        ? parentFolder.name
+                        : t("googleDrive.parentFolderRoot") ||
+                          "Thư mục gốc (My Drive)"}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[11px]"
+                    onClick={openPickerForParentFolder}
+                  >
+                    {t("googleDrive.chooseParentFolderBtn") ||
+                      "Chọn vị trí cha..."}
+                  </Button>
+                </div>
+              </div>
+
+              <DialogFooter className="mt-2 flex items-center justify-between gap-2 sm:justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsNewFolderStep(false)}
+                  className="h-8 text-xs"
+                >
+                  <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+                  {t("googleDrive.backBtn") || "Quay lại"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleCreateFolderAndSave}
+                  className="h-8 text-xs"
+                >
+                  {t("googleDrive.createAndSaveBtn") || "Tạo & Lưu vào đây"}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Google Sign-in Prompt Dialog when silent auth requires user activation */}
       <AlertDialog

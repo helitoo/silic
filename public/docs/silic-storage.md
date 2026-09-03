@@ -724,13 +724,16 @@ sequenceDiagram
 
 ---
 
-### 11.3. Flow 2: Save & Save As to Google Drive™ (Multipart Upload & Location Selection)
+### 11.3. Flow 2: Save & Save As to Google Drive™ (Multipart Upload & 3 Location Options)
 
 - **Save (`⌘ S` / `Ctrl S`)**:
   - **With `driveFileId` (Already linked to Drive)**: Directly executes an HTTP `PATCH` multipart upload request to update the existing file in-place (`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=multipart`) without opening any dialog.
-  - **Without `driveFileId` (Local-only document)**: Automatically opens the Google Drive™ Picker (`viewId: "FOLDERS"`) so the user can choose the destination folder on Google Drive™. Once selected, uploads the `.silic` archive via `POST` multipart upload into the chosen folder and stores the new `driveFileId`.
+  - **Without `driveFileId` (Local-only document)**: Displays a Save Location Modal allowing the user to select one of 3 options:
+    1. **Lưu tại folder gốc (Root / My Drive)**: Directly uploads the `.silic` file to `root` via `POST` multipart upload without needing the Google Drive™ Picker API.
+    2. **Chọn folder đã có (Existing Folder)**: Opens the Google Drive™ Picker (`viewId: "FOLDERS"`, title: `"Select a folder"`) for the user to pick an existing folder, then uploads into that folder.
+    3. **Tạo folder mới (New Folder)**: Prompts the user for a new folder name and optional parent folder (via Picker), creates the folder on Google Drive™ via `POST https://www.googleapis.com/drive/v3/files` (`mimeType: application/vnd.google-apps.folder`), and uploads the `.silic` archive inside this newly created folder.
 - **Save As (`⌘ ⇧ S` / `Ctrl Shift S`)**:
-  - **Always opens Google Drive™ Picker (`viewId: "FOLDERS"`)**: Regardless of current `driveFileId`, prompts the user to select a destination folder (or overwrite target), exports the current project, uploads as a new file on Google Drive™ via `POST` multipart upload, and switches `driveFileId` to the newly created file.
+  - Regardless of current `driveFileId`, opens the Save Location Modal with the same 3 options, exports the current project, uploads as a new file on Google Drive™, and updates `driveFileId`.
 
 ```mermaid
 sequenceDiagram
@@ -738,10 +741,11 @@ sequenceDiagram
     actor User as User
     participant Navbar as Navbar (⌘ S / ⌘ ⇧ S)
     participant DriveCtx as GoogleDrivePickerContext
+    participant SaveModal as Save Location Modal (3 Options)
     participant Picker as Google Drive™ Picker API (FOLDERS)
+    participant DriveAPI as Google Drive™ API v3
     participant StorageCtx as ProjectStorageContext
     participant Worker as Web Worker (zipWorker.ts)
-    participant DriveAPI as Google Drive™ API v3 (Multipart)
     participant IDB as IndexedDB (silic-db)
 
     User->>Navbar: Press ⌘ S (Save) or ⌘ ⇧ S (Save As)
@@ -759,10 +763,26 @@ sequenceDiagram
         DriveCtx->>DriveCtx: hideLoading()
         DriveCtx->>User: Display success Toast ("Saved to Google Drive™")
     else Save As (isSaveAs == true) OR First-Time Save (!driveFileId)
-        DriveCtx->>Picker: openPicker({ viewId: "FOLDERS", setSelectFolderEnabled: true, showUploadView: true })
-        Picker->>User: Display Google Drive™ Folder & Location Picker modal
-        User->>Picker: Select destination folder (or location)
-        Picker-->>DriveCtx: callbackFunction({ action: "picked", docs: [{ id: parentFolderId, ... }] })
+        DriveCtx->>SaveModal: Open Save Location Modal (3 options)
+        SaveModal->>User: Display: 1. Root Folder | 2. Existing Folder | 3. New Folder
+
+        alt Option 1: Lưu tại folder gốc (Root)
+            User->>SaveModal: Choose "Lưu tại folder gốc"
+            SaveModal->>DriveCtx: performSaveToLocation({ parentFolderId: "root" })
+        else Option 2: Chọn folder đã có (Existing Folder)
+            User->>SaveModal: Choose "Chọn folder đã có"
+            SaveModal->>Picker: openPicker({ viewId: "FOLDERS", title: "Select a folder" })
+            Picker->>User: Display Google Drive™ Folder Picker modal
+            User->>Picker: Select target destination folder
+            Picker-->>DriveCtx: callbackFunction({ action: "picked", docs: [{ id: parentFolderId }] })
+            DriveCtx->>DriveCtx: performSaveToLocation({ parentFolderId })
+        else Option 3: Tạo folder mới (New Folder)
+            User->>SaveModal: Choose "Tạo folder mới", enter folder name & optional parent
+            SaveModal->>DriveCtx: createDriveFolder(newFolderName, token, parentFolderId)
+            DriveCtx->>DriveAPI: POST /drive/v3/files (mimeType: folder)
+            DriveAPI-->>DriveCtx: Return { id: newFolderId }
+            DriveCtx->>DriveCtx: performSaveToLocation({ parentFolderId: newFolderId })
+        end
 
         DriveCtx->>DriveCtx: showLoading("Saving to Google Drive™...")
         DriveCtx->>DriveCtx: getGoogleAccessToken()
@@ -772,7 +792,7 @@ sequenceDiagram
         StorageCtx-->>DriveCtx: Return { buffer, fileName }
 
         DriveCtx->>DriveAPI: POST https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart<br/>(parents: [parentFolderId])
-        DriveAPI-->>DriveCtx: Return { id, name } (New file created in chosen folder)
+        DriveAPI-->>DriveCtx: Return { id, name } (New file created in target folder)
         DriveCtx->>StorageCtx: setDriveFileId(newId)
         StorageCtx->>IDB: saveAppState({ driveFileId: newId, ... })
         DriveCtx->>DriveCtx: hideLoading()
@@ -786,12 +806,16 @@ sequenceDiagram
 
 This flow allows users to instantly share their project for view-only access without manual email permission management.
 
+> [!NOTE]
+> **Auto-Save Flow Redirection**: If a user clicks **Share** when the document has not yet been saved to Google Drive™ (`!driveFileId`), the application automatically redirects to the **Save Location flow** (displaying the 3 location options). Once saved, it immediately creates the view-only permission and copies the share link to the clipboard.
+
 ```mermaid
 sequenceDiagram
     autonumber
     actor User as User
     participant Navbar as Navbar (File -> Share)
     participant DriveCtx as GoogleDrivePickerContext
+    participant SaveModal as Save Location Modal (3 Options)
     participant StorageCtx as ProjectStorageContext
     participant DriveAPI as Google Drive™ API v3
     participant Clipboard as navigator.clipboard
@@ -800,7 +824,8 @@ sequenceDiagram
     Navbar->>DriveCtx: handleShareDrive()
 
     opt Project not yet saved to Google Drive™ (!driveFileId)
-        DriveCtx->>DriveCtx: Auto-save project to Google Drive™ first (POST multipart)
+        DriveCtx->>SaveModal: Open Save Location Modal (pendingShare = true)
+        Note over SaveModal,DriveCtx: User completes Save via (Root / Existing / New Folder)
         DriveCtx->>StorageCtx: setDriveFileId(newFileId)
     end
 

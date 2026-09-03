@@ -298,6 +298,53 @@ export async function saveToDrive(
 }
 
 /**
+ * Create a new folder on Google Drive™.
+ */
+export async function createDriveFolder(
+  folderName: string,
+  accessToken: string,
+  parentFolderId?: string,
+  folderResourceKey?: string
+): Promise<{ id: string; name: string; [key: string]: unknown }> {
+  const metadata: { name: string; mimeType: string; parents?: string[] } = {
+    name: folderName.trim() || "Untitled Folder",
+    mimeType: "application/vnd.google-apps.folder",
+  }
+
+  if (parentFolderId && parentFolderId !== "root") {
+    metadata.parents = [parentFolderId]
+  } else {
+    metadata.parents = ["root"]
+  }
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+  }
+
+  if (folderResourceKey && parentFolderId && parentFolderId !== "root") {
+    headers["X-Goog-Drive-Resource-Keys"] =
+      `${parentFolderId}/${folderResourceKey}`
+  }
+
+  const res = await fetch("https://www.googleapis.com/drive/v3/files", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(metadata),
+  })
+
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => "")
+    throw new DriveApiError(
+      errorText || `Failed to create folder with status ${res.status}`,
+      res.status
+    )
+  }
+
+  return res.json()
+}
+
+/**
  * Share a file on Google Drive™ as view-only (role: "reader").
  */
 export async function shareViewOnly(

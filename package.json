@@ -37,7 +37,6 @@
     "react": "^19.2.6",
     "react-day-picker": "^10.0.1",
     "react-dom": "^19.2.6",
-    "react-google-drive-picker": "^1.2.2",
     "react-hook-form": "^7.86.0",
     "react-markdown": "^10.1.0",
     "react-markdown-mermaid": "^0.0.3",
