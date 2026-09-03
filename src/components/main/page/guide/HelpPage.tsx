@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -17,6 +18,7 @@ import {
   Share2,
   Globe,
   User,
+  AlertCircle,
 } from "lucide-react"
 
 function GithubIcon({ className }: { className?: string }) {
@@ -51,6 +53,56 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { toast } from "@/components/ui/toast"
+import { cn } from "@/lib/utils"
+
+const DAILY_EMAIL_LIMIT = 2
+const EMAIL_SENT_KEY = "silic_help_email_quota"
+
+interface DailyEmailQuota {
+  date: string
+  count: number
+}
+
+function getTodayDateString(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, "0")
+  const day = String(now.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function getDailyEmailCount(): number {
+  try {
+    const raw = localStorage.getItem(EMAIL_SENT_KEY)
+    if (!raw) return 0
+    const data: DailyEmailQuota = JSON.parse(raw)
+    const today = getTodayDateString()
+    if (data.date === today && typeof data.count === "number") {
+      return data.count
+    }
+    return 0
+  } catch (e) {
+    console.error("Failed to parse email quota from localStorage:", e)
+    return 0
+  }
+}
+
+function incrementDailyEmailCount(): number {
+  try {
+    const today = getTodayDateString()
+    const currentCount = getDailyEmailCount()
+    const newCount = currentCount + 1
+    const data: DailyEmailQuota = {
+      date: today,
+      count: newCount,
+    }
+    localStorage.setItem(EMAIL_SENT_KEY, JSON.stringify(data))
+    return newCount
+  } catch (e) {
+    console.error("Failed to update email quota in localStorage:", e)
+    return 0
+  }
+}
 
 const helpSchema = z.object({
   title: z.string().trim().min(1, { message: "titleRequired" }),
@@ -67,6 +119,18 @@ type HelpFormData = z.infer<typeof helpSchema>
 export function HelpPage() {
   const { t } = useLang()
   const { navigate } = useRouter()
+  const [sentCount, setSentCount] = useState<number>(() => getDailyEmailCount())
+  const isLimitReached = sentCount >= DAILY_EMAIL_LIMIT
+
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === EMAIL_SENT_KEY) {
+        setSentCount(getDailyEmailCount())
+      }
+    }
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, [])
 
   const {
     register,
@@ -82,7 +146,21 @@ export function HelpPage() {
     },
   })
 
+  const manualMailtoHref =
+    "mailto:bao162006@gmail.com?subject=Silic%20Support%20Inquiry"
+
   const onSubmit = async (data: HelpFormData) => {
+    const currentCount = getDailyEmailCount()
+    if (currentCount >= DAILY_EMAIL_LIMIT) {
+      setSentCount(currentCount)
+      toast.add({
+        title: t("helpPage.rateLimitTitle"),
+        description: t("helpPage.rateLimitDesc"),
+        type: "error",
+      })
+      return
+    }
+
     const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
     const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID
     const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID
@@ -112,6 +190,9 @@ export function HelpPage() {
         publicKey
       )
 
+      const newCount = incrementDailyEmailCount()
+      setSentCount(newCount)
+
       toast.add({
         title: t("helpPage.sendSuccessTitle"),
         description: t("helpPage.sendSuccessDesc"),
@@ -119,12 +200,13 @@ export function HelpPage() {
       })
 
       reset()
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("EmailJS Error:", err)
+      const errObj = err as { text?: string; message?: string } | undefined
       toast.add({
         title: t("helpPage.sendErrorTitle"),
         description:
-          err?.text || err?.message || t("helpPage.sendErrorDesc"),
+          errObj?.text || errObj?.message || t("helpPage.sendErrorDesc"),
         type: "error",
       })
     }
@@ -166,23 +248,79 @@ export function HelpPage() {
         <div className="lg:col-span-7">
           <Card className="border-border/80 shadow-xs">
             <CardHeader className="space-y-1.5 pb-4">
-              <div className="flex items-center gap-2 text-primary">
-                <MessageSquare className="size-5" />
-                <CardTitle className="text-lg font-bold">
-                  {t("helpPage.formCardTitle")}
-                </CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-primary">
+                  <MessageSquare className="size-5" />
+                  <CardTitle className="text-lg font-bold">
+                    {t("helpPage.formCardTitle")}
+                  </CardTitle>
+                </div>
+                <div
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
+                    isLimitReached
+                      ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                      : "border-border/80 bg-muted/40 text-muted-foreground"
+                  )}
+                >
+                  <Mail className="size-3" />
+                  <span>
+                    {t("helpPage.dailyQuotaLabel")}:{" "}
+                    <strong
+                      className={
+                        isLimitReached
+                          ? "font-bold text-amber-600 dark:text-amber-400"
+                          : "font-semibold text-foreground"
+                      }
+                    >
+                      {sentCount}/{DAILY_EMAIL_LIMIT}
+                    </strong>
+                  </span>
+                </div>
               </div>
               <CardDescription className="text-xs sm:text-sm">
                 {t("helpPage.formCardDesc")}
               </CardDescription>
             </CardHeader>
 
-            <CardContent>
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+            <CardContent className="space-y-5">
+              {/* Daily Limit Reached Warning Banner */}
+              {isLimitReached && (
+                <div className="animate-in space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-foreground duration-300 fade-in-50 sm:text-sm">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="mt-0.5 size-5 shrink-0 text-amber-500" />
+                    <div className="space-y-1">
+                      <h4 className="font-semibold text-amber-600 dark:text-amber-400">
+                        {t("helpPage.limitReachedAlertTitle")}
+                      </h4>
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        {t("helpPage.limitReachedAlertDesc")}
+                      </p>
+                      <a
+                        href={manualMailtoHref}
+                        className="inline-flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-xs font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90"
+                      >
+                        <Mail className="size-3.5" />
+                        <span>{t("helpPage.manualMailBtn")}</span>
+                        <ExternalLink className="size-3" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <form
+                onSubmit={handleSubmit(onSubmit)}
+                className="space-y-5"
+                noValidate
+              >
                 <FieldGroup className="gap-4">
                   {/* Field 1: Title */}
                   <Field data-invalid={!!errors.title}>
-                    <FieldLabel htmlFor="help-title" className="flex items-center gap-1.5 text-xs font-semibold">
+                    <FieldLabel
+                      htmlFor="help-title"
+                      className="flex items-center gap-1.5 text-xs font-semibold"
+                    >
                       <Heading1 className="size-3.5 text-muted-foreground" />
                       <span>{t("helpPage.titleLabel")}</span>
                       <span className="text-destructive">*</span>
@@ -192,7 +330,7 @@ export function HelpPage() {
                       type="text"
                       placeholder={t("helpPage.titlePlaceholder")}
                       className="h-9 px-3 text-xs sm:text-sm"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || isLimitReached}
                       {...register("title")}
                     />
                     {errors.title && (
@@ -204,7 +342,10 @@ export function HelpPage() {
 
                   {/* Field 2: Email */}
                   <Field data-invalid={!!errors.email}>
-                    <FieldLabel htmlFor="help-email" className="flex items-center gap-1.5 text-xs font-semibold">
+                    <FieldLabel
+                      htmlFor="help-email"
+                      className="flex items-center gap-1.5 text-xs font-semibold"
+                    >
                       <AtSign className="size-3.5 text-muted-foreground" />
                       <span>{t("helpPage.emailLabel")}</span>
                       <span className="text-destructive">*</span>
@@ -214,7 +355,7 @@ export function HelpPage() {
                       type="email"
                       placeholder={t("helpPage.emailPlaceholder")}
                       className="h-9 px-3 text-xs sm:text-sm"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || isLimitReached}
                       {...register("email")}
                     />
                     {errors.email && (
@@ -226,7 +367,10 @@ export function HelpPage() {
 
                   {/* Field 3: Message */}
                   <Field data-invalid={!!errors.message}>
-                    <FieldLabel htmlFor="help-message" className="flex items-center gap-1.5 text-xs font-semibold">
+                    <FieldLabel
+                      htmlFor="help-message"
+                      className="flex items-center gap-1.5 text-xs font-semibold"
+                    >
                       <MessageSquare className="size-3.5 text-muted-foreground" />
                       <span>{t("helpPage.messageLabel")}</span>
                       <span className="text-destructive">*</span>
@@ -236,7 +380,7 @@ export function HelpPage() {
                       rows={5}
                       placeholder={t("helpPage.messagePlaceholder")}
                       className="min-h-28 px-3 py-2 text-xs sm:text-sm"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || isLimitReached}
                       {...register("message")}
                     />
                     {errors.message && (
@@ -247,16 +391,21 @@ export function HelpPage() {
                   </Field>
                 </FieldGroup>
 
-                <div className="pt-2">
+                <div className="flex flex-wrap items-center gap-3 pt-2">
                   <Button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isLimitReached}
                     className="w-full cursor-pointer gap-2 shadow-xs sm:w-auto sm:min-w-40"
                   >
                     {isSubmitting ? (
                       <>
                         <Loader2 className="size-4 animate-spin" />
                         <span>{t("helpPage.sendingBtn")}</span>
+                      </>
+                    ) : isLimitReached ? (
+                      <>
+                        <AlertCircle className="size-4" />
+                        <span>{t("helpPage.limitReachedBtn")}</span>
                       </>
                     ) : (
                       <>
@@ -287,7 +436,7 @@ export function HelpPage() {
                   <ShieldQuestion className="size-3.5 text-primary" />
                   <span>{t("helpPage.faq1Title")}</span>
                 </div>
-                <p className="text-muted-foreground leading-relaxed">
+                <p className="leading-relaxed text-muted-foreground">
                   {t("helpPage.faq1Desc")}
                 </p>
               </div>
@@ -297,7 +446,7 @@ export function HelpPage() {
                   <Share2 className="size-3.5 text-primary" />
                   <span>{t("helpPage.faq2Title")}</span>
                 </div>
-                <p className="text-muted-foreground leading-relaxed">
+                <p className="leading-relaxed text-muted-foreground">
                   {t("helpPage.faq2Desc")}
                 </p>
               </div>
@@ -345,8 +494,12 @@ export function HelpPage() {
             <CardContent className="space-y-2 text-xs">
               {/* Developer */}
               <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
-                <span className="text-muted-foreground">{t("helpPage.developerLabel")}</span>
-                <span className="font-semibold text-foreground">{t("helpPage.developerName")}</span>
+                <span className="text-muted-foreground">
+                  {t("helpPage.developerLabel")}
+                </span>
+                <span className="font-semibold text-foreground">
+                  {t("helpPage.developerName")}
+                </span>
               </div>
 
               {/* Email */}
