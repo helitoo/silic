@@ -1,6 +1,6 @@
 # Silic Privacy Policy
 
-Version: _v0.3.0_.
+Last updated: September 3, 2026.
 
 ---
 

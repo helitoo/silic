@@ -724,16 +724,18 @@ sequenceDiagram
 
 ---
 
-### 11.3. Flow 2: Save & Save As to Google Drive™ (Multipart Upload & 3 Location Options)
+### 11.3. Flow 2: Save & Save As to Google Drive™ (Multipart Upload & Folder-Only Location Policy)
+
+- **Root Directory Save Prohibition**:
+  To maintain a clean Google Drive™ storage hierarchy and avoid loose files in the root folder, saving `.silic` project files directly into the root directory (`"root"` / `My Drive`) is strictly prohibited. Both the backend API layer (`ROOT_SAVE_DISALLOWED`) and client UI validation enforce that all project files must reside within a designated folder.
 
 - **Save (`⌘ S` / `Ctrl S`)**:
   - **With `driveFileId` (Already linked to Drive)**: Directly executes an HTTP `PATCH` multipart upload request to update the existing file in-place (`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=multipart`) without opening any dialog.
-  - **Without `driveFileId` (Local-only document)**: Displays a Save Location Modal allowing the user to select one of 3 options:
-    1. **Lưu tại folder gốc (Root / My Drive)**: Directly uploads the `.silic` file to `root` via `POST` multipart upload without needing the Google Drive™ Picker API.
-    2. **Chọn folder đã có (Existing Folder)**: Opens the Google Drive™ Picker (`viewId: "FOLDERS"`, title: `"Select a folder"`) for the user to pick an existing folder, then uploads into that folder.
-    3. **Tạo folder mới (New Folder)**: Prompts the user for a new folder name and optional parent folder (via Picker), creates the folder on Google Drive™ via `POST https://www.googleapis.com/drive/v3/files` (`mimeType: application/vnd.google-apps.folder`), and uploads the `.silic` archive inside this newly created folder.
+  - **Without `driveFileId` (Local-only document)**: Displays a Save Location Modal providing 2 folder-based options:
+    1. **Chọn folder đã có (Existing Folder)**: Opens the Google Drive™ Picker (`viewId: "FOLDERS"`, title: `"Select a folder"`). If the user attempts to select root My Drive, the system rejects root selection, prompts a warning Toast, and asks for a subfolder.
+    2. **Tạo folder mới (New Folder)**: Prompts the user for a new folder name and optional parent folder (defaults to My Drive), creates the folder on Google Drive™ via `POST https://www.googleapis.com/drive/v3/files` (`mimeType: application/vnd.google-apps.folder`), and uploads the `.silic` archive inside this newly created folder.
 - **Save As (`⌘ ⇧ S` / `Ctrl Shift S`)**:
-  - Regardless of current `driveFileId`, opens the Save Location Modal with the same 3 options, exports the current project, uploads as a new file on Google Drive™, and updates `driveFileId`.
+  - Regardless of current `driveFileId`, opens the Save Location Modal with the same 2 folder options, exports the current project, uploads as a new file in the selected folder on Google Drive™, and updates `driveFileId`.
 
 ```mermaid
 sequenceDiagram
@@ -741,7 +743,7 @@ sequenceDiagram
     actor User as User
     participant Navbar as Navbar (⌘ S / ⌘ ⇧ S)
     participant DriveCtx as GoogleDrivePickerContext
-    participant SaveModal as Save Location Modal (3 Options)
+    participant SaveModal as Save Location Modal
     participant Picker as Google Drive™ Picker API (FOLDERS)
     participant DriveAPI as Google Drive™ API v3
     participant StorageCtx as ProjectStorageContext
@@ -763,21 +765,24 @@ sequenceDiagram
         DriveCtx->>DriveCtx: hideLoading()
         DriveCtx->>User: Display success Toast ("Saved to Google Drive™")
     else Save As (isSaveAs == true) OR First-Time Save (!driveFileId)
-        DriveCtx->>SaveModal: Open Save Location Modal (3 options)
-        SaveModal->>User: Display: 1. Root Folder | 2. Existing Folder | 3. New Folder
+        DriveCtx->>SaveModal: Open Save Location Modal (2 Folder Options)
+        SaveModal->>User: Display: 1. Existing Folder | 2. New Folder
 
-        alt Option 1: Lưu tại folder gốc (Root)
-            User->>SaveModal: Choose "Lưu tại folder gốc"
-            SaveModal->>DriveCtx: performSaveToLocation({ parentFolderId: "root" })
-        else Option 2: Chọn folder đã có (Existing Folder)
+        alt Option 1: Chọn folder đã có (Existing Folder)
             User->>SaveModal: Choose "Chọn folder đã có"
             SaveModal->>Picker: openPicker({ viewId: "FOLDERS", title: "Select a folder" })
             Picker->>User: Display Google Drive™ Folder Picker modal
-            User->>Picker: Select target destination folder
-            Picker-->>DriveCtx: callbackFunction({ action: "picked", docs: [{ id: parentFolderId }] })
-            DriveCtx->>DriveCtx: performSaveToLocation({ parentFolderId })
-        else Option 3: Tạo folder mới (New Folder)
-            User->>SaveModal: Choose "Tạo folder mới", enter folder name & optional parent
+            User->>Picker: Select target destination folder (Must be a subfolder)
+            alt Selected folder is Root
+                Picker-->>DriveCtx: Selected root ("root")
+                DriveCtx->>User: Toast Warning: "Cannot save to root folder. Please select a specific folder."
+                DriveCtx->>SaveModal: Reopen Save Location Modal
+            else Valid Subfolder Selected
+                Picker-->>DriveCtx: callbackFunction({ action: "picked", docs: [{ id: parentFolderId }] })
+                DriveCtx->>DriveCtx: performSaveToLocation({ parentFolderId })
+            end
+        else Option 2: Tạo folder mới (New Folder)
+            User->>SaveModal: Choose "Tạo folder mới", enter folder name & choose parent folder
             SaveModal->>DriveCtx: createDriveFolder(newFolderName, token, parentFolderId)
             DriveCtx->>DriveAPI: POST /drive/v3/files (mimeType: folder)
             DriveAPI-->>DriveCtx: Return { id: newFolderId }
@@ -807,7 +812,7 @@ sequenceDiagram
 This flow allows users to instantly share their project for view-only access without manual email permission management.
 
 > [!NOTE]
-> **Auto-Save Flow Redirection**: If a user clicks **Share** when the document has not yet been saved to Google Drive™ (`!driveFileId`), the application automatically redirects to the **Save Location flow** (displaying the 3 location options). Once saved, it immediately creates the view-only permission and copies the share link to the clipboard.
+> **Auto-Save Flow Redirection**: If a user clicks **Share** when the document has not yet been saved to Google Drive™ (`!driveFileId`), the application automatically redirects to the **Save Location flow** (displaying the folder selection/creation options). Once saved in a designated folder, it immediately creates the view-only permission and copies the share link to the clipboard.
 
 ```mermaid
 sequenceDiagram
@@ -815,7 +820,7 @@ sequenceDiagram
     actor User as User
     participant Navbar as Navbar (File -> Share)
     participant DriveCtx as GoogleDrivePickerContext
-    participant SaveModal as Save Location Modal (3 Options)
+    participant SaveModal as Save Location Modal
     participant StorageCtx as ProjectStorageContext
     participant DriveAPI as Google Drive™ API v3
     participant Clipboard as navigator.clipboard
@@ -825,7 +830,7 @@ sequenceDiagram
 
     opt Project not yet saved to Google Drive™ (!driveFileId)
         DriveCtx->>SaveModal: Open Save Location Modal (pendingShare = true)
-        Note over SaveModal,DriveCtx: User completes Save via (Root / Existing / New Folder)
+        Note over SaveModal,DriveCtx: User completes Save via (Existing Folder / New Folder)
         DriveCtx->>StorageCtx: setDriveFileId(newFileId)
     end
 
@@ -844,7 +849,7 @@ sequenceDiagram
 #### Key Sharing Features:
 
 - **Zero Configuration**: Automatically sets `role: "reader"` and `type: "anyone"`, making the file accessible to anyone with the link.
-- **Auto-Upload Fallback**: If the user clicks Share on a local-only document, Silic automatically uploads it to Drive before creating the share link.
+- **Auto-Upload Fallback**: If the user clicks Share on a local-only document, Silic automatically prompts to save it into a folder on Drive before creating the share link.
 - **Clipboard Integration**: Automatically copies the URL directly to the user's clipboard.
 
 ---
@@ -924,16 +929,22 @@ sequenceDiagram
         end
     else action === "create"
         DriveCtx->>StorageCtx: newProject() (Reset workspace to blank canvas)
-        DriveCtx->>DriveCtx: createEmptySilicBuffer("Untitled")
-        DriveCtx->>DriveAPI: POST /files?uploadType=multipart (parents: [folderId], Header: X-Goog-Drive-Resource-Keys)
-        alt Create File Error (403/404)
-            DriveAPI-->>DriveCtx: Error response
-            DriveCtx->>User: Toast Error: "Failed to create file on Google Drive™"
-        else Create File Success (200 OK)
-            DriveAPI-->>DriveCtx: Return created file { id: "newFile123" }
-            DriveCtx->>StorageCtx: setDriveFileId("newFile123")
+        alt folderId is a specific subfolder (folderId !== "root")
+            DriveCtx->>DriveCtx: createEmptySilicBuffer("Untitled")
+            DriveCtx->>DriveAPI: POST /files?uploadType=multipart (parents: [folderId], Header: X-Goog-Drive-Resource-Keys)
+            alt Create File Error (403/404)
+                DriveAPI-->>DriveCtx: Error response
+                DriveCtx->>User: Toast Error: "Failed to create file on Google Drive™"
+            else Create File Success (200 OK)
+                DriveAPI-->>DriveCtx: Return created file { id: "newFile123" }
+                DriveCtx->>StorageCtx: setDriveFileId("newFile123")
+                DriveCtx->>Browser: navigate("/d")
+                DriveCtx->>User: Toast Success: "Created new file on Google Drive™"
+            end
+        else folderId is root or unspecified
+            Note over DriveCtx,Browser: Avoid creating loose files in root. Initialize canvas in memory.
             DriveCtx->>Browser: navigate("/d")
-            DriveCtx->>User: Toast Success: "Created new file on Google Drive™"
+            DriveCtx->>User: Toast Info: "New project ready. Save to a folder when completed."
         end
     end
 ```
@@ -956,3 +967,4 @@ sequenceDiagram
    - **404 Not Found**: Informs the user that the target file does not exist or was deleted permanently.
    - **Trash Check**: Validates `trashed` and `explicitlyTrashed` flags before downloading binaries.
    - **File Corruption**: Traps decompression and Web Worker errors, showing explicit diagnostic notifications rather than failing silently.
+   - **Folder-Only Creation Policy**: When triggered with `action: "create"` from root My Drive, Silic creates a clean in-memory project instead of creating empty files in the root folder, prompting the user to select/create a folder when saving.

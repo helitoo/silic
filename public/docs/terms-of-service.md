@@ -1,6 +1,6 @@
 # Silic Terms of Service
 
-Version: _v0.1.0_.
+Last updated: September 3, 2026.
 
 These terms constitute an agreement between the user and the Silic developer, governing the user's use of Silic's services (as outlined in Section 1) in accordance with the laws of the Socialist Republic of Vietnam.
 
