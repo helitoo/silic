@@ -562,7 +562,7 @@
     "ruleSubtitle": "Silic sẽ tự động lựa chọn thông tin đầu tiên để đại diện cho thực thể",
     "entityNameTitle": "Tên của thực thể",
     "entityNameDesc_prefix": "Được tính là thông tin đầu tiên có kiểu dữ liệu ",
-    "shortTextType": "Bài văn",
+    "shortTextType": "Chữ",
     "entityColorTitle": "Màu của thực thể",
     "entityColorDesc_prefix": "Được tính là thông tin đầu tiên có kiểu dữ liệu ",
     "colorType": "Màu sắc",

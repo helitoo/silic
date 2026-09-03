@@ -562,7 +562,7 @@
     "ruleSubtitle": "Silic automatically selects the first record to represent the entity",
     "entityNameTitle": "Entity Name",
     "entityNameDesc_prefix": "Calculated as the first record of type ",
-    "shortTextType": "Short Text",
+    "shortTextType": "Text",
     "entityColorTitle": "Entity Color",
     "entityColorDesc_prefix": "Calculated as the first record of type ",
     "colorType": "Color",
