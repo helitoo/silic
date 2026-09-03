@@ -81,13 +81,6 @@ export function LandingPage() {
             "<h2>Silic - Local-First Knowledge Graph</h2><p>Silic là ứng dụng ghi chú dựa trên <strong>đồ thị tri thức đa thuộc tính</strong>, hoạt động hoàn toàn cục bộ ngay trong trình duyệt của bạn theo mô hình <strong>Local-First & Offline-First</strong>.</p><h3>Điểm nổi bật:</h3><ul><li><strong>13+ kiểu dữ liệu linh hoạt:</strong> Hỗ trợ văn bản, văn bản dài, số, ngày giờ, hình ảnh, âm thanh, video, tệp tin và màu sắc.</li><li><strong>Quan hệ siêu liên kết (Hyper-Relations):</strong> Kết nối nhiều thực thể nguồn tới nhiều thực thể đích với hướng quan hệ rõ ràng.</li><li><strong>Bộ máy truy vấn BFS:</strong> Tìm kiếm đường đi ngắn nhất giữa các thực thể và đánh giá biểu thức logic đa biến.</li><li><strong>Bảo mật 100%:</strong> Toàn bộ dữ liệu được lưu an toàn trong IndexedDB của bạn, không gửi về bất kỳ máy chủ nào.</li></ul>",
         },
         {
-          id: "rec-version",
-          type: "shortText",
-          name: "Phiên bản",
-          isArray: false,
-          value: "v0.1.0",
-        },
-        {
           id: "rec-type",
           type: "shortText",
           name: "Phân loại",
