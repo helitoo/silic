@@ -510,11 +510,11 @@
     "dataTypesTitle": "12+ DATA TYPES",
     "types": {
       "shortText": {
-        "label": "Short Text",
+        "label": "Text",
         "desc": "Names, titles, codes, short category labels"
       },
       "longText": {
-        "label": "Long Text",
+        "label": "Essay",
         "desc": "Articles, biographies, rich-text markdown documents"
       },
       "number": {
