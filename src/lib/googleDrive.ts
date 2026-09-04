@@ -45,10 +45,26 @@ let cachedAccessToken: string | null = null
 let tokenExpiresAt = 0
 
 /**
+ * Generic timeout wrapper for asynchronous operations to prevent hanging promises.
+ */
+export function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  errorMessage = "Operation timed out"
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMessage)), ms)
+    ),
+  ])
+}
+
+/**
  * Load Google Identity Services (GIS) client script if not already present.
  */
 export function loadGsiClientScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
+  const loadPromise = new Promise<void>((resolve, reject) => {
     const win = (typeof window !== "undefined"
       ? window
       : undefined) as unknown as GoogleIdentityGlobal | undefined
@@ -78,6 +94,12 @@ export function loadGsiClientScript(): Promise<void> {
       reject(new Error("Failed to load Google Identity Services"))
     document.head.appendChild(script)
   })
+
+  return withTimeout(
+    loadPromise,
+    10000,
+    "Timed out loading Google Identity Services client script"
+  )
 }
 
 /**
@@ -87,6 +109,7 @@ export async function getGoogleAccessToken(options?: {
   prompt?: "" | "consent" | "select_account"
   forceRefresh?: boolean
   hint?: string
+  timeoutMs?: number
 }): Promise<string> {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
   if (!clientId) {
@@ -104,12 +127,16 @@ export async function getGoogleAccessToken(options?: {
 
   await loadGsiClientScript()
 
-  return new Promise((resolve, reject) => {
+  const defaultTimeout = options?.prompt === "" ? 5000 : 60000
+  const timeoutMs = options?.timeoutMs ?? defaultTimeout
+
+  const tokenPromise = new Promise<string>((resolve, reject) => {
     try {
       const win = window as unknown as GoogleIdentityGlobal
       const google = win.google
       if (!google?.accounts?.oauth2) {
-        throw new Error("Google Identity Services not initialized")
+        reject(new Error("Google Identity Services not initialized"))
+        return
       }
 
       const client = google.accounts.oauth2.initTokenClient({
@@ -145,6 +172,14 @@ export async function getGoogleAccessToken(options?: {
       reject(err)
     }
   })
+
+  return withTimeout(
+    tokenPromise,
+    timeoutMs,
+    options?.prompt === ""
+      ? "Silent Google authorization timed out (User activation required or cookies blocked)"
+      : "Google authorization popup timed out or was closed"
+  )
 }
 
 /**
@@ -174,9 +209,15 @@ export async function downloadDriveFile(
     headers["X-Goog-Drive-Resource-Keys"] = `${fileId}/${resourceKey}`
   }
 
-  const res = await fetch(
+  const fetchPromise = fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
     { headers }
+  )
+
+  const res = await withTimeout(
+    fetchPromise,
+    30000,
+    "Google Drive file download timed out (30s limit)"
   )
 
   if (!res.ok) {
@@ -214,9 +255,15 @@ export async function getDriveFileMetadata(
     headers["X-Goog-Drive-Resource-Keys"] = `${fileId}/${resourceKey}`
   }
 
-  const res = await fetch(
+  const fetchPromise = fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,trashed,explicitlyTrashed`,
     { headers }
+  )
+
+  const res = await withTimeout(
+    fetchPromise,
+    15000,
+    "Google Drive metadata request timed out (15s limit)"
   )
 
   if (!res.ok) {
@@ -283,11 +330,17 @@ export async function saveToDrive(
       `${existingFileId}/${fileResourceKey}`
   }
 
-  const res = await fetch(url, {
+  const fetchPromise = fetch(url, {
     method: existingFileId ? "PATCH" : "POST",
     headers,
     body: form,
   })
+
+  const res = await withTimeout(
+    fetchPromise,
+    45000,
+    "Google Drive save/upload timed out (45s limit)"
+  )
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "")
@@ -330,11 +383,17 @@ export async function createDriveFolder(
       `${parentFolderId}/${folderResourceKey}`
   }
 
-  const res = await fetch("https://www.googleapis.com/drive/v3/files", {
+  const fetchPromise = fetch("https://www.googleapis.com/drive/v3/files", {
     method: "POST",
     headers,
     body: JSON.stringify(metadata),
   })
+
+  const res = await withTimeout(
+    fetchPromise,
+    20000,
+    "Google Drive folder creation timed out (20s limit)"
+  )
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "")
@@ -359,7 +418,7 @@ export async function shareViewOnly(
     ? { role: "reader", type: "user", emailAddress: email }
     : { role: "reader", type: "anyone" }
 
-  const res = await fetch(
+  const fetchPromise = fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
     {
       method: "POST",
@@ -369,6 +428,12 @@ export async function shareViewOnly(
       },
       body: JSON.stringify(body),
     }
+  )
+
+  const res = await withTimeout(
+    fetchPromise,
+    20000,
+    "Google Drive permission share timed out (20s limit)"
   )
 
   if (!res.ok) {
@@ -443,7 +508,8 @@ export function handleDriveState(): DriveStateAction | null {
         stateStr = hashParams.get("state") || ""
       }
     }
-  } catch {
+  } catch (urlErr) {
+    console.error("Failed to read URL parameters for Google Drive state:", urlErr)
     return null
   }
 
@@ -458,7 +524,10 @@ export function handleDriveState(): DriveStateAction | null {
       parsed = JSON.parse(decodeURIComponent(stateStr))
     }
 
-    if (!parsed || typeof parsed !== "object") return null
+    if (!parsed || typeof parsed !== "object") {
+      console.warn("Parsed Google Drive state is not an object:", parsed)
+      return null
+    }
 
     const action =
       typeof parsed.action === "string" ? parsed.action.toLowerCase() : ""
@@ -484,7 +553,10 @@ export function handleDriveState(): DriveStateAction | null {
 
     // 1. Open URL action
     if (action === "open" || (rawIds.length > 0 && action !== "create")) {
-      if (rawIds.length === 0) return null
+      if (rawIds.length === 0) {
+        console.warn("Drive state 'open' action missing valid file IDs:", parsed)
+        return null
+      }
       const fileId = rawIds[0]
       const resourceKeysDict =
         parsed.resourceKeys && typeof parsed.resourceKeys === "object"
@@ -507,8 +579,10 @@ export function handleDriveState(): DriveStateAction | null {
       return { action: "create", folderId, folderResourceKey, userId }
     }
 
+    console.warn("Google Drive state did not match 'open' or 'create' actions:", parsed)
     return null
-  } catch {
+  } catch (parseErr) {
+    console.error("Failed to parse Google Drive state query parameter:", parseErr, "rawState:", stateStr)
     return null
   }
 }

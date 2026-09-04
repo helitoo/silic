@@ -498,7 +498,23 @@ export function ProjectStorageProvider({
       )
 
       const zipPromise = new Promise<ArrayBuffer>((resolve, reject) => {
+        let isSettled = false
+        const timer = setTimeout(() => {
+          if (!isSettled) {
+            isSettled = true
+            worker.terminate()
+            reject(
+              new Error(
+                "Worker timed out during archive compression (20s limit)"
+              )
+            )
+          }
+        }, 20000)
+
         worker.onmessage = (e) => {
+          if (isSettled) return
+          isSettled = true
+          clearTimeout(timer)
           const res = e.data
           worker.terminate()
           if (res.success && res.action === "export") {
@@ -508,8 +524,15 @@ export function ProjectStorageProvider({
           }
         }
         worker.onerror = (err) => {
+          if (isSettled) return
+          isSettled = true
+          clearTimeout(timer)
           worker.terminate()
-          reject(err)
+          reject(
+            new Error(
+              `Worker execution error: ${err.message || "Archive compression failed"}`
+            )
+          )
         }
 
         worker.postMessage(
@@ -578,7 +601,23 @@ export function ProjectStorageProvider({
           templatesJson: string
           attachments: Array<{ path: string; buffer: ArrayBuffer }>
         }>((resolve, reject) => {
+          let isSettled = false
+          const timer = setTimeout(() => {
+            if (!isSettled) {
+              isSettled = true
+              worker.terminate()
+              reject(
+                new Error(
+                  "Worker timed out during archive decompression (15s limit)"
+                )
+              )
+            }
+          }, 15000)
+
           worker.onmessage = (e) => {
+            if (isSettled) return
+            isSettled = true
+            clearTimeout(timer)
             const res = e.data
             worker.terminate()
             if (res.success && res.action === "import") {
@@ -588,8 +627,15 @@ export function ProjectStorageProvider({
             }
           }
           worker.onerror = (err) => {
+            if (isSettled) return
+            isSettled = true
+            clearTimeout(timer)
             worker.terminate()
-            reject(err)
+            reject(
+              new Error(
+                `Worker execution error: ${err.message || "Failed to decompress archive"}`
+              )
+            )
           }
 
           worker.postMessage(
@@ -683,11 +729,29 @@ export function ProjectStorageProvider({
         })
       } catch (err: any) {
         console.error("Import error:", err)
-        toast.add({
-          type: "error",
-          title: "Import failed",
-          description: err?.message || String(err),
-        })
+        const isQuotaOrStorageError =
+          err?.name === "QuotaExceededError" ||
+          err?.name === "SecurityError" ||
+          (typeof err?.message === "string" &&
+            err.message.toLowerCase().includes("quota"))
+
+        if (isQuotaOrStorageError) {
+          toast.add({
+            type: "error",
+            title:
+              t("googleDrive.quotaError") ||
+              "Bộ nhớ trình duyệt bị đầy hoặc bị giới hạn",
+            description:
+              t("googleDrive.quotaErrorDesc") ||
+              "Không thể lưu dữ liệu vào IndexedDB do vượt giới hạn dung lượng hoặc chế độ ẩn danh.",
+          })
+        } else {
+          toast.add({
+            type: "error",
+            title: t("googleDrive.corruptError") || "Tệp .silic không hợp lệ",
+            description: err?.message || String(err),
+          })
+        }
       } finally {
         hideLoading()
       }

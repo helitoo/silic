@@ -854,7 +854,7 @@ sequenceDiagram
 
 ---
 
-### 11.5. Flow 4: Google Drive™ "Open with Silic" Integration (App Startup State Parameter)
+### 11.5. Flow 4: Google Drive™ "Open/Create with Silic" Integration (App Startup State Parameter)
 
 When a user right-clicks a `.silic` file on Google Drive™ and selects **"Open with Silic"** or creates a new file via **"New > More > Silic"**, Google Drive™ launches the application URL (`/d`) with a serialized `state` query parameter:
 
@@ -886,85 +886,268 @@ sequenceDiagram
     Browser->>Browser: Navigate to https://silic.kemlib.com/d?state={...}
     Browser->>DriveCtx: GoogleDrivePickerProvider mounts
 
-    DriveCtx->>DriveCtx: handleDriveState() -> extracts action, IDs, resourceKeys, userId
-    DriveCtx->>Browser: window.history.replaceState() (Strip `state` & ensure /d route)
+    Note over DriveCtx,Browser: Step 1: Idempotency Guard & Safe State Parsing
+    DriveCtx->>DriveCtx: Check Idempotency Guard (processedDriveStates Set)
+    alt Already Processed (React StrictMode double mount / HMR reload)
+        DriveCtx-->>DriveCtx: Skip duplicate execution (Prevent infinite loop / stale reload)
+    else First Execution
+        DriveCtx->>DriveCtx: Multi-stage JSON parse (direct JSON & decodeURIComponent)
+        alt State Missing or Malformed (JSON Parse Exception)
+            DriveCtx->>User: Toast Error: "Invalid Google Drive™ startup parameters."
+            DriveCtx->>DriveCtx: Terminate startup flow cleanly (No lingering spinner)
+        else Valid State Parsed
+            DriveCtx->>DriveCtx: Mark state as processed in Idempotency Guard
+            DriveCtx->>Browser: Synchronize RouterContext & Strip `state` (navigate /d, replace)
+            DriveCtx->>DriveCtx: showLoading("Opening / Creating with Google Drive™...")
 
-    DriveCtx->>DriveCtx: Try silent OAuth: getGoogleAccessToken({ prompt: "", hint: userId })
-    alt Silent OAuth Fails (User Activation Required / Popup Blocked)
-        DriveCtx->>AuthModal: Display "Sign in with Google" Prompt Dialog (with userId hint)
-        User->>AuthModal: Click "Sign in with Google" (User Click Gesture)
-        AuthModal->>GIS: getGoogleAccessToken({ prompt: "consent", hint: userId })
-        GIS-->>DriveCtx: Return OAuth 2.0 Access Token
-    else Silent OAuth Succeeds
-        GIS-->>DriveCtx: Return Cached / Silent Access Token
-    end
+            Note over DriveCtx,AuthModal: Step 2: Resilient Silent OAuth with Timeout Wrapper
+            DriveCtx->>DriveCtx: withTimeout(getGoogleAccessToken({ prompt: "", hint: userId }), 5000)
+            alt Silent OAuth Fails OR Times Out (AdBlock / 3P Cookie Blocked / User Hint Mismatch)
+                DriveCtx->>DriveCtx: hideLoading() (Pause spinner)
+                DriveCtx->>AuthModal: Display "Sign in with Google" Prompt Dialog (with userId hint)
+                User->>AuthModal: Click "Sign in with Google" (Authentic User Click Gesture)
+                AuthModal->>DriveCtx: showLoading("Authenticating with Google...")
+                AuthModal->>GIS: withTimeout(getGoogleAccessToken({ prompt: "consent", hint: userId }), 60000)
+                GIS-->>DriveCtx: Return OAuth 2.0 Access Token
+            else Silent OAuth Succeeds within 5s
+                GIS-->>DriveCtx: Return Cached / Silent Access Token
+            end
 
-    alt action === "open"
-        DriveCtx->>DriveAPI: GET /files/{fileId}?fields=id,name,mimeType,trashed (Header: X-Goog-Drive-Resource-Keys)
-        alt 403 Forbidden (Wrong Google Account / No Access)
-            DriveAPI-->>DriveCtx: 403 Forbidden
-            DriveCtx->>User: Toast Error: "Access Denied. Please switch to the correct Google account."
-        else 404 Not Found (Permanently Deleted)
-            DriveAPI-->>DriveCtx: 404 Not Found
-            DriveCtx->>User: Toast Error: "File not found on Google Drive™."
-        else File is in Trash (trashed === true)
-            DriveAPI-->>DriveCtx: Metadata { trashed: true }
-            DriveCtx->>User: Toast Error: "File has been moved to trash on Google Drive™."
-        else File is Active (200 OK)
-            DriveAPI-->>DriveCtx: Metadata { name: "project.silic", trashed: false }
-            DriveCtx->>DriveAPI: GET /files/{fileId}?alt=media (Header: X-Goog-Drive-Resource-Keys)
-            DriveAPI-->>DriveCtx: Return binary ArrayBuffer
-            DriveCtx->>StorageCtx: importProjectSilic(new File([buffer]), fileId)
-            StorageCtx->>Worker: postMessage({ action: "import", buffer })
-            alt Corrupted File / Invalid Archive
-                Worker-->>StorageCtx: Error: "Import failed / Invalid format"
-                StorageCtx->>User: Toast Error: "Invalid or Corrupted .silic File"
-            else Successful Decompression
-                Worker-->>StorageCtx: Extracted datasets & attachments
-                StorageCtx->>IDB: Save attachments & App State
-                StorageCtx->>StorageCtx: setDriveFileId(fileId)
-                DriveCtx->>Browser: navigate("/d")
-                DriveCtx->>User: Toast Success: "Opened file from Google Drive™"
+            Note over DriveCtx,IDB: Step 3: Action Execution with Catch-All Error Handling
+            alt action === "open"
+                DriveCtx->>DriveAPI: GET /files/{fileId}?fields=id,name,mimeType,trashed,explicitlyTrashed<br/>(Header: X-Goog-Drive-Resource-Keys, withTimeout: 15s)
+                alt 401 Unauthorized (Token Revoked / Expired in Transit)
+                    DriveAPI-->>DriveCtx: 401 Unauthorized
+                    DriveCtx->>User: Toast Error: "Google authorization expired. Please sign in again."
+                else 403 Forbidden (Permission Denied / Missing Resource Key)
+                    DriveAPI-->>DriveCtx: 403 Forbidden
+                    DriveCtx->>User: Toast Error: "Access Denied. Switch Google account or verify link-sharing key."
+                else 404 Not Found (Permanently Deleted / Invalid File ID)
+                    DriveAPI-->>DriveCtx: 404 Not Found
+                    DriveCtx->>User: Toast Error: "File not found on Google Drive™."
+                else 429 Too Many Requests (Rate Limit Exceeded)
+                    DriveAPI-->>DriveCtx: 429 Rate Limit
+                    DriveCtx->>User: Toast Error: "Google Drive™ rate limit reached. Please try again later."
+                else 500/503 Server Error / Network TypeError (Failed to fetch)
+                    DriveAPI-->>DriveCtx: 500/503 / Network Error
+                    DriveCtx->>User: Toast Error: "Network or Google Drive™ server error. Please check connection."
+                else File is in Trash (trashed === true)
+                    DriveAPI-->>DriveCtx: Metadata { trashed: true }
+                    DriveCtx->>User: Toast Error: "File has been moved to trash on Google Drive™."
+                else File Active (200 OK)
+                    DriveAPI-->>DriveCtx: Metadata { name: "project.silic", trashed: false }
+                    DriveCtx->>DriveAPI: GET /files/{fileId}?alt=media (Header: X-Goog-Drive-Resource-Keys, withTimeout: 30s)
+                    DriveAPI-->>DriveCtx: Return binary ArrayBuffer
+                    DriveCtx->>StorageCtx: importProjectSilic(new File([buffer]), fileId)
+                    
+                    Note over StorageCtx,Worker: Step 4: Web Worker Unpack with onerror & 15s Timeout
+                    StorageCtx->>Worker: postMessage({ action: "import", buffer })
+                    alt Worker Load Error / Crash / Memory Kill / Corrupt Archive
+                        Worker-->>StorageCtx: worker.onerror OR withTimeout(15s) Rejection
+                        StorageCtx->>User: Toast Error: "Failed to extract .silic file or archive corrupted."
+                    else Successful Decompression
+                        Worker-->>StorageCtx: Extracted datasets & attachments
+                        StorageCtx->>IDB: Save attachments & App State (QuotaExceededError handled)
+                        StorageCtx->>StorageCtx: setDriveFileId(fileId)
+                        DriveCtx->>Browser: navigate("/d")
+                        DriveCtx->>User: Toast Success: "Opened file from Google Drive™"
+                    end
+                end
+            else action === "create"
+                DriveCtx->>StorageCtx: newProject() (Reset workspace to blank canvas)
+                alt folderId is a specific subfolder (folderId !== "root")
+                    DriveCtx->>DriveCtx: createEmptySilicBuffer("Untitled")
+                    DriveCtx->>DriveAPI: POST /files?uploadType=multipart (parents: [folderId], Header: X-Goog-Drive-Resource-Keys, withTimeout: 45s)
+                    alt Create File Error (401/403/404/429/500/Network)
+                        DriveAPI-->>DriveCtx: Error response
+                        DriveCtx->>User: Toast Error: "Failed to create file on Google Drive™."
+                    else Create File Success (200 OK)
+                        DriveAPI-->>DriveCtx: Return created file { id: "newFile123" }
+                        DriveCtx->>StorageCtx: setDriveFileId("newFile123")
+                        DriveCtx->>Browser: navigate("/d")
+                        DriveCtx->>User: Toast Success: "Created new file on Google Drive™"
+                    end
+                else folderId is root or unspecified
+                    Note over DriveCtx,Browser: Avoid creating loose files in root. Initialize canvas in memory.
+                    DriveCtx->>Browser: navigate("/d")
+                    DriveCtx->>User: Toast Info: "New project ready. Save to a folder when completed."
+                end
             end
         end
-    else action === "create"
-        DriveCtx->>StorageCtx: newProject() (Reset workspace to blank canvas)
-        alt folderId is a specific subfolder (folderId !== "root")
-            DriveCtx->>DriveCtx: createEmptySilicBuffer("Untitled")
-            DriveCtx->>DriveAPI: POST /files?uploadType=multipart (parents: [folderId], Header: X-Goog-Drive-Resource-Keys)
-            alt Create File Error (403/404)
-                DriveAPI-->>DriveCtx: Error response
-                DriveCtx->>User: Toast Error: "Failed to create file on Google Drive™"
-            else Create File Success (200 OK)
-                DriveAPI-->>DriveCtx: Return created file { id: "newFile123" }
-                DriveCtx->>StorageCtx: setDriveFileId("newFile123")
-                DriveCtx->>Browser: navigate("/d")
-                DriveCtx->>User: Toast Success: "Created new file on Google Drive™"
-            end
-        else folderId is root or unspecified
-            Note over DriveCtx,Browser: Avoid creating loose files in root. Initialize canvas in memory.
-            DriveCtx->>Browser: navigate("/d")
-            DriveCtx->>User: Toast Info: "New project ready. Save to a folder when completed."
-        end
     end
+
+    Note over DriveCtx,User: Step 5: Guaranteed Teardown (Finally Block)
+    DriveCtx->>DriveCtx: finally { hideLoading(); setIsDriveLoading(false); }
 ```
 
-#### Detailed Processing Steps & Edge Cases:
+---
 
-1. **URL Parameter Extraction (`handleDriveState`)**:
-   - Parses the serialized `state` JSON parameter from the URL.
-   - Extracts `ids[0]`, `resourceKeys[ids[0]]` (for `open`), `folderId`, `folderResourceKey` (for `create`), and `userId`.
-2. **URL Parameter Sanitization**:
-   - Immediately strips the `state` query parameter using `history.replaceState` and ensures the pathname is `/d`, preventing accidental duplicate requests upon browser refresh.
-3. **User Activation & Anti-Popup-Blocking Authentication**:
-   - Attempts silent token acquisition first (`prompt: ""`, with `hint: userId`).
-   - If silent token resolution fails (because the browser requires user activation to open OAuth popups), a dedicated **Sign-in Prompt Dialog** is displayed.
-   - Clicking the dialog's action button executes OAuth inside a legitimate browser user gesture, preventing popup blockers.
-4. **Link-Shared Resource Keys**:
-   - Automatically attaches the `X-Goog-Drive-Resource-Keys` header (`${fileId}/${resourceKey}` or `${folderId}/${folderResourceKey}`) on all Google Drive™ API v3 requests to support files/folders created with link-sharing security updates.
-5. **Multi-Account & Error Handling**:
-   - **403 Forbidden**: Informs the user of permission denial and advises switching to the designated Google account.
-   - **404 Not Found**: Informs the user that the target file does not exist or was deleted permanently.
-   - **Trash Check**: Validates `trashed` and `explicitlyTrashed` flags before downloading binaries.
-   - **File Corruption**: Traps decompression and Web Worker errors, showing explicit diagnostic notifications rather than failing silently.
-   - **Folder-Only Creation Policy**: When triggered with `action: "create"` from root My Drive, Silic creates a clean in-memory project instead of creating empty files in the root folder, prompting the user to select/create a folder when saving.
+#### Detailed Failure Modes, Risk Analysis & Defensive Engineering Guidelines
+
+To prevent **infinite loading spinners**, **silent promise stalls**, and **race-condition crashes** during Google Drive™ app startup integration, Silic enforces strict defensive programming guidelines across 5 core failure domains:
+
+---
+
+##### Category A: State Parsing & URL Lifecycle Risks
+
+1. **Uncaught `JSON.parse` Exceptions (Malformed / Truncated State)**:
+   - **Failure Vector**: The `state` parameter may exceed proxy/browser URL length limits, be double-encoded (`%257B...`), or contain unescaped special characters in `resourceKeys`. Calling `JSON.parse()` without resilient multi-stage decoding causes runtime exceptions. If a loading state was set prior to parsing, the UI locks in an infinite spinner without displaying error messages.
+   - **Defensive Strategy**:
+     - Implement a two-stage parsing fallback: try direct `JSON.parse(stateStr)`, then fallback to `JSON.parse(decodeURIComponent(stateStr))`.
+     - Enclose extraction logic in dedicated `try/catch` blocks.
+     - On parse failure, immediately log the raw string with `console.error()`, show a descriptive error toast (`"Tham số khởi động Google Drive™ không hợp lệ"` / `"Invalid Google Drive™ startup parameters."`), and ensure the loading state is deactivated.
+
+2. **`history.replaceState` Race Conditions & React StrictMode Double-Mount**:
+   - **Failure Vector**: In React 18 (Strict Mode in development) or during fast route transitions/HMR, the root `useEffect` executes twice. The first run parses the `state` parameter and calls `history.replaceState` to strip it from the URL. The second run detects an empty or `undefined` state. If the effect does not guard against duplicate or empty states, it may re-trigger a loading spinner that never terminates.
+   - **Defensive Strategy**:
+     - **Idempotency Guard**: Store processed raw state signatures in a module-level set (`processedDriveStates`) or `sessionStorage`.
+     - Check `if (!rawState) return` and skip processing immediately without setting loading flags.
+     - Ensure URL sanitization happens strictly after successful state extraction.
+
+3. **Router State Desynchronization**:
+   - **Failure Vector**: Using raw `window.history.replaceState` alone can desynchronize browser history from internal router state (such as `RouterContext`'s internal location tracker), leading to unexpected re-renders with stale query parameters.
+   - **Defensive Strategy**: Synchronize URL cleanup directly through router navigation primitives (e.g., `navigate(targetPath + newSearch, { replace: true })`), keeping both browser history and in-memory routing state consistent.
+
+---
+
+##### Category B: Silent OAuth & Pop-up Blocker Risks
+
+4. **Silent OAuth Hanging Indefinitely (`getGoogleAccessToken`)**:
+   - **Failure Vector**: Silent token acquisition (`prompt: ""`, with `hint: userId`) uses an invisible iframe and Google Identity Services (GIS) `postMessage` callbacks. The promise will **never resolve or reject** if:
+     - The GIS client script (`https://accounts.google.com/gsi/client`) is blocked by AdBlock, tracking blockers, or strict CSP policies.
+     - Third-party cookies are blocked by browser privacy mechanisms (Safari ITP, Brave Shields, Chrome Privacy Sandbox 3P cookie deprecation).
+     - The provided `hint: userId` does not match the active session in the user's browser.
+   - **Defensive Strategy**:
+     - Wrap all silent token acquisition calls with a strict timeout utility (`withTimeout(promise, 5000, "Silent OAuth timeout")`).
+     - When the timeout triggers, reject the silent flow immediately, dismiss the spinner, and display the **Sign-in Prompt Dialog** (`AlertDialog` / `AuthModal`).
+
+5. **Silent Pop-up Blocking on Unprompted Mounts**:
+   - **Failure Vector**: Calling interactive OAuth (`prompt: "consent"`) programmatically upon component mount without a direct user gesture causes modern browsers to silently block the popup window (returning `null` or suppressing the window). As a result, GIS callbacks never fire, hanging all subsequent `await` calls.
+   - **Defensive Strategy**:
+     - Never launch interactive OAuth popups automatically on mount.
+     - When silent OAuth fails or times out, display the **Sign-in Prompt Dialog**. The user clicking `"Đăng nhập Google"` constitutes an authentic user gesture that browsers permit.
+
+---
+
+##### Category C: Google Drive™ API v3 & Catch-All Error Handling
+
+6. **Comprehensive HTTP Status Code & Network Error Handling**:
+   - **Failure Vector**: Handling only specific error statuses (such as 403 or 404) while omitting others causes unhandled HTTP responses (401, 429, 500, 503) or pure network exceptions (`TypeError: Failed to fetch` caused by offline state, DNS failures, or CORS rejections) to bypass standard branches. Uncaught network errors leave the UI in an eternal loading state.
+   - **Defensive Strategy**:
+     - Implement an explicit error handling matrix:
+       | Status / Error | Diagnostic Reason | Handled User Action |
+       | :--- | :--- | :--- |
+       | **401 Unauthorized** | Token expired or revoked during transit | Clear cached token, prompt user to re-authenticate |
+       | **403 Forbidden** | User lacks file permissions or missing resource key | Display Toast advising switching to the owner Google account |
+       | **404 Not Found** | File was deleted permanently or invalid file ID | Display Toast: `"File not found on Google Drive™"` |
+       | **429 Too Many Requests** | Google API rate limit or quota exceeded | Display Toast: `"Rate limit reached. Please try again in a moment."` |
+       | **500 / 503 Server Error** | Google Drive™ backend temporarily unavailable | Display Toast: `"Google Drive™ server error. Please retry shortly."` |
+       | **Network Error / Fetch Failure** | Offline, DNS resolution error, or CORS blocked | Display Toast: `"Network connection error. Please verify your internet connection."` |
+       | **File in Trash (`trashed: true`)** | File resides in Google Drive™ Trash | Display Toast: `"File is in trash. Restore it on Drive before opening."` |
+       | **Catch-All Generic Fallback** | Unforeseen runtime exception | Display Toast: `"An error occurred. Please try again."` |
+
+7. **Link-Sharing Security Updates & Resource Key Verification**:
+   - **Failure Vector**: Files shared via link generated after Google's 2021 Drive security update require the `X-Goog-Drive-Resource-Keys` request header. If the header is missing, Google returns `403 Forbidden`, which can be misdiagnosed as account permission refusal.
+   - **Defensive Strategy**: Extract `resourceKeys[fileId]` or `folderResourceKey` from the `state` parameter and automatically append `X-Goog-Drive-Resource-Keys: ${id}/${key}` to all Drive API fetch headers.
+
+8. **Scope `drive.file` Per-File Grant Boundary & Intentional 404 Response**:
+   - **Architectural Context**: Silic intentionally requests the narrow, privacy-friendly `https://www.googleapis.com/auth/drive.file` scope. This scope grants access *only* to files created by Silic or files explicitly selected by the user via Google Picker / Drive UI.
+   - **404 vs 403 Security Behavior**: When an application makes an API call for a file ID without prior per-file authorization under `drive.file`, Google Drive API intentionally responds with `404 Not Found` (rather than `403 Forbidden`) as a security defense-in-depth measure to avoid leaking file existence to unauthorized apps.
+   - **Implication for Manual URL Testing**: Synthetic test URLs manually crafted with arbitrary file IDs will receive `404 Not Found` unless the file was legitimately created by Silic or selected through the real Google Drive UI "Open with" action (which automatically grants the per-file token permission).
+
+9. **Guaranteed Cleanup via `finally` Block**:
+   - **Failure Vector**: Scattershot loading resets inside intermediate `try` branches often miss unhandled exception branches.
+   - **Defensive Strategy**: Always place `hideLoading()` and `setIsDriveLoading(false)` inside a global `finally` block enclosing the entire startup execution flow.
+
+---
+
+##### Category D: Web Worker & Storage Persistence Risks
+
+9. **Web Worker Silent Failure & Crash Protection**:
+   - **Failure Vector**: The main thread delegates `.silic` archive decompression to `zipWorker.ts` via `postMessage({ action: "import", buffer })`. If the worker script fails to load (wrong path post-build, CSP `worker-src` restriction), throws an unhandled runtime error without `onerror`, or is killed by the browser due to memory constraints on massive files, `postMessage` never returns, hanging the application indefinitely.
+   - **Defensive Strategy**:
+     - Attach a dedicated `worker.onerror` listener alongside `worker.onmessage`.
+     - Wrap the worker promise with a 15-second timeout (`setTimeout`).
+     - In the event of a worker error or timeout, terminate the worker instance (`worker.terminate()`), reject the import promise, and display an explicit corruption notification.
+
+10. **IndexedDB Quota & Private Browsing Constraints**:
+    - **Failure Vector**: In Safari Private Browsing mode or when disk storage quota is exceeded, IndexedDB transactions reject with `QuotaExceededError` or `SecurityError`.
+    - **Defensive Strategy**: Wrap all IndexedDB persistence calls in `try/catch` and provide a clear fallback warning toast (`"Storage quota exceeded or private browsing restriction. Please free space."`).
+
+---
+
+##### Category E: Robustness Patterns & Debugging Utilities
+
+Below are standard patterns implemented to prevent hanging promises and guarantee UI stability:
+
+```typescript
+// 1. Generic Timeout Wrapper for Asynchronous Callbacks
+export function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  errorMessage = "Operation timed out"
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMessage)), ms)
+    ),
+  ])
+}
+
+// 2. Idempotency Guard Pattern for Startup Effects
+const processedDriveStates = new Set<string>()
+
+export function isStateAlreadyHandled(rawState: string): boolean {
+  if (!rawState) return true
+  if (processedDriveStates.has(rawState)) return true
+  processedDriveStates.add(rawState)
+  return false
+}
+
+// 3. Web Worker Execution Wrapper with Timeout and Error Trap
+export function extractArchiveWithWorker(
+  fileBuffer: ArrayBuffer,
+  timeoutMs = 15000
+): Promise<ExtractedArchiveData> {
+  return new Promise((resolve, reject) => {
+    let isSettled = false
+    const worker = new Worker(
+      new URL("../lib/workers/zipWorker.ts", import.meta.url),
+      { type: "module" }
+    )
+
+    const timer = setTimeout(() => {
+      if (!isSettled) {
+        isSettled = true
+        worker.terminate()
+        reject(new Error("Worker timed out during archive decompression (15s limit)"))
+      }
+    }, timeoutMs)
+
+    worker.onmessage = (e: MessageEvent) => {
+      if (isSettled) return
+      isSettled = true
+      clearTimeout(timer)
+      const res = e.data
+      worker.terminate()
+      if (res.success && res.action === "import") {
+        resolve(res)
+      } else {
+        reject(new Error(res.error || "Import failed"))
+      }
+    }
+
+    worker.onerror = (err: ErrorEvent) => {
+      if (isSettled) return
+      isSettled = true
+      clearTimeout(timer)
+      worker.terminate()
+      reject(new Error(`Worker execution error: ${err.message || "Failed to decompress archive"}`))
+    }
+
+    worker.postMessage({ action: "import", buffer: fileBuffer }, [fileBuffer])
+  })
+}
+```
+

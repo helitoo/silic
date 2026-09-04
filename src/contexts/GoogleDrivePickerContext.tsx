@@ -1,11 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import * as React from "react"
-import {
-  FolderOpen,
-  FolderPlus,
-  Folder,
-  ArrowLeft,
-} from "lucide-react"
+import { FolderOpen, FolderPlus, Folder, ArrowLeft } from "lucide-react"
 import useDrivePicker, {
   type ViewIdOptions,
   type PickerCallback,
@@ -26,6 +21,7 @@ import {
   handleDriveState,
   createEmptySilicBuffer,
   DriveApiError,
+  withTimeout,
   type DriveStateAction,
 } from "@/lib/googleDrive"
 import {
@@ -873,11 +869,22 @@ export function GoogleDrivePickerProvider({
         // First try silent auth or use user gesture
         let token: string
         try {
-          token = await getGoogleAccessToken({
-            prompt: isUserGesture ? "consent" : "",
-            hint: driveState.userId,
-          })
+          token = await withTimeout(
+            getGoogleAccessToken({
+              prompt: isUserGesture ? "consent" : "",
+              hint: driveState.userId,
+              timeoutMs: isUserGesture ? 60000 : 5000,
+            }),
+            isUserGesture ? 60000 : 5000,
+            isUserGesture
+              ? "Google authorization popup timed out"
+              : "Silent Google authorization timed out"
+          )
         } catch (authErr) {
+          console.warn(
+            "Google Drive authorization attempt failed/timed out:",
+            authErr
+          )
           if (!isUserGesture) {
             // Silent auth failed -> avoid blocking popup, prompt user to click
             setIsDriveLoading(false)
@@ -976,8 +983,7 @@ export function GoogleDrivePickerProvider({
             navigate("/d")
             toast.add({
               type: "info",
-              title:
-                t("googleDrive.newProjectReadyTitle") || "Dự án mới",
+              title: t("googleDrive.newProjectReadyTitle") || "Dự án mới",
               description:
                 t("googleDrive.newProjectReadyDesc") ||
                 "Dự án mới đã sẵn sàng. Hãy lưu vào một thư mục trên Google Drive khi hoàn tất.",
@@ -987,35 +993,84 @@ export function GoogleDrivePickerProvider({
       } catch (err: unknown) {
         setDriveFileId(null)
         const errorMsg = err instanceof Error ? err.message : String(err)
-        console.error("Failed to execute Drive action:", err)
+        console.error("Failed to execute Drive startup action:", err)
 
-        if (err instanceof DriveApiError && err.status === 403) {
+        const isNetworkError =
+          (err instanceof TypeError &&
+            (errorMsg.includes("fetch") ||
+              errorMsg.includes("NetworkError"))) ||
+          (typeof navigator !== "undefined" && !navigator.onLine)
+
+        if (isNetworkError) {
           toast.add({
             type: "error",
-            title:
-              t("googleDrive.forbiddenError") || "Không có quyền truy cập tệp",
+            title: t("googleDrive.networkError") || "Lỗi kết nối mạng",
             description:
-              t("googleDrive.forbiddenErrorDesc") ||
-              "Tài khoản Google hiện tại không có quyền truy cập tệp này.",
+              t("googleDrive.networkErrorDesc") ||
+              "Không thể kết nối đến Google Drive™. Vui lòng kiểm tra lại đường truyền internet.",
           })
-        } else if (err instanceof DriveApiError && err.status === 404) {
-          toast.add({
-            type: "error",
-            title:
-              t("googleDrive.notFoundError") ||
-              "Không tìm thấy tệp trên Google Drive™",
-            description:
-              t("googleDrive.notFoundErrorDesc") ||
-              "Tệp có thể đã bị xóa vĩnh viễn hoặc liên kết không hợp lệ.",
-          })
-        } else if (err instanceof DriveApiError && err.status === 401) {
-          toast.add({
-            type: "error",
-            title:
-              t("googleDrive.authCancelled") ||
-              "Đã hủy đăng nhập Google Drive™",
-            description: errorMsg,
-          })
+        } else if (err instanceof DriveApiError) {
+          if (err.status === 401) {
+            toast.add({
+              type: "error",
+              title:
+                t("googleDrive.authExpired") ||
+                "Phiên đăng nhập Google hết hạn",
+              description:
+                t("googleDrive.authExpiredDesc") ||
+                "Quyền truy cập Google Drive™ đã hết hạn hoặc bị thu hồi. Vui lòng đăng nhập lại.",
+            })
+          } else if (err.status === 403) {
+            toast.add({
+              type: "error",
+              title:
+                t("googleDrive.forbiddenError") ||
+                "Không có quyền truy cập tệp",
+              description:
+                t("googleDrive.forbiddenErrorDesc") ||
+                "Tài khoản Google hiện tại không có quyền truy cập tệp này hoặc thiếu resource key.",
+            })
+          } else if (err.status === 404) {
+            toast.add({
+              type: "error",
+              title:
+                t("googleDrive.notFoundError") ||
+                "Không tìm thấy tệp trên Google Drive™",
+              description:
+                t("googleDrive.notFoundErrorDesc") ||
+                "Tệp có thể đã bị xóa vĩnh viễn hoặc liên kết không hợp lệ.",
+            })
+          } else if (err.status === 429) {
+            toast.add({
+              type: "error",
+              title:
+                t("googleDrive.rateLimitError") ||
+                "Vượt quá giới hạn yêu cầu (Rate Limit)",
+              description:
+                t("googleDrive.rateLimitErrorDesc") ||
+                "Google Drive™ đang quá tải hoặc đạt giới hạn truy cập. Vui lòng thử lại sau vài giây.",
+            })
+          } else if (err.status >= 500) {
+            toast.add({
+              type: "error",
+              title:
+                t("googleDrive.serverError") || "Lỗi máy chủ Google Drive™",
+              description:
+                t("googleDrive.serverErrorDesc") ||
+                "Máy chủ Google Drive™ đang gặp sự cố tạm thời (500/503). Vui lòng thử lại sau.",
+            })
+          } else {
+            toast.add({
+              type: "error",
+              title:
+                driveState.action === "create"
+                  ? t("googleDrive.createError") ||
+                    "Không thể tạo tệp trên Google Drive™"
+                  : t("googleDrive.openError") ||
+                    "Không thể mở file từ Google Drive™",
+              description: errorMsg,
+            })
+          }
         } else {
           toast.add({
             type: "error",
@@ -1025,7 +1080,10 @@ export function GoogleDrivePickerProvider({
                   "Không thể tạo tệp trên Google Drive™"
                 : t("googleDrive.openError") ||
                   "Không thể mở file từ Google Drive™",
-            description: errorMsg,
+            description:
+              errorMsg ||
+              t("common.genericError") ||
+              "Đã xảy ra lỗi không xác định. Vui lòng thử lại.",
           })
         }
       } finally {
@@ -1044,10 +1102,40 @@ export function GoogleDrivePickerProvider({
     ]
   )
 
+  const processedStateRef = React.useRef<string | null>(null)
+
   // Handle Google Drive™ "Open with Silic" or "Create with Silic" URL state param on mount
   React.useEffect(() => {
+    let rawState = ""
+    try {
+      const searchParams = new URLSearchParams(window.location.search)
+      rawState = searchParams.get("state") || ""
+      if (!rawState && window.location.hash) {
+        const hashQueryIndex = window.location.hash.indexOf("?")
+        if (hashQueryIndex !== -1) {
+          const hashParams = new URLSearchParams(
+            window.location.hash.slice(hashQueryIndex)
+          )
+          rawState = hashParams.get("state") || ""
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // If no state parameter present, do nothing
+    if (!rawState) return
+
+    // Prevent duplicate processing on StrictMode double-mount
+    if (processedStateRef.current === rawState) {
+      return
+    }
+    processedStateRef.current = rawState
+
+    console.info("[Google Drive Startup] Raw state detected in URL:", rawState)
+
+    // Parse state parameter
     const driveState = handleDriveState()
-    if (!driveState) return
 
     // Clean URL state param to prevent re-opening on reload and ensure we are on /d
     try {
@@ -1058,16 +1146,33 @@ export function GoogleDrivePickerProvider({
       const newSearch = url.searchParams.toString()
         ? `?${url.searchParams.toString()}`
         : ""
-      window.history.replaceState({}, document.title, targetPath + newSearch)
+
+      // Synchronize RouterContext and window history
+      navigate(targetPath + newSearch, { replace: true })
     } catch {
       // ignore
     }
 
-    const timer = setTimeout(() => {
-      executeDriveAction(driveState, false)
-    }, 0)
-    return () => clearTimeout(timer)
-  }, [executeDriveAction])
+    if (!driveState) {
+      console.warn(
+        "[Google Drive Startup] Invalid or unparseable Google Drive startup state parameter:",
+        rawState
+      )
+      toast.add({
+        type: "error",
+        title:
+          t("googleDrive.invalidStateError") ||
+          "Tham số khởi động Google Drive™ không hợp lệ",
+        description:
+          t("googleDrive.invalidStateErrorDesc") ||
+          "Dữ liệu tham số trạng thái từ Google Drive™ bị lỗi hoặc không thể giải mã.",
+      })
+      return
+    }
+
+    console.info("[Google Drive Startup] Executing startup action:", driveState)
+    void executeDriveAction(driveState, false)
+  }, [executeDriveAction, navigate, t])
 
   const contextValue = React.useMemo<GoogleDrivePickerContextType>(
     () => ({
@@ -1249,13 +1354,6 @@ export function GoogleDrivePickerProvider({
             <AlertDialogDescription>
               {t("googleDrive.authRequiredDesc") ||
                 "Vui lòng đăng nhập tài khoản Google Drive™ để tiếp tục thao tác với tệp tin."}
-              {pendingDriveAction?.userId && (
-                <span className="mt-2 block text-xs text-muted-foreground">
-                  {t("googleDrive.authRequiredHint", {
-                    userId: pendingDriveAction.userId,
-                  }) || `Tài khoản Google Drive™: ${pendingDriveAction.userId}`}
-                </span>
-              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
