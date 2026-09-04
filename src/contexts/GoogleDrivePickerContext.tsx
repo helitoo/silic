@@ -13,6 +13,7 @@ import { copyToClipboard } from "@/lib/utils"
 import {
   getGoogleAccessToken,
   setCachedGoogleAccessToken,
+  hasValidCachedGoogleAccessToken,
   downloadDriveFile,
   getDriveFileMetadata,
   saveToDrive,
@@ -854,6 +855,17 @@ export function GoogleDrivePickerProvider({
   // Execute drive action (open or create from URL state parameter)
   const executeDriveAction = React.useCallback(
     async (driveState: DriveStateAction, isUserGesture = false) => {
+      // On cold start / first login without cached token:
+      // Bypass silent OAuth delay entirely to save time.
+      // Immediately prompt sign-in dialog so user can trigger the OAuth popup via an authentic click gesture.
+      if (!isUserGesture && !hasValidCachedGoogleAccessToken()) {
+        console.info(
+          "[Google Drive Startup] Cold start without cached token: displaying sign-in dialog directly"
+        )
+        setPendingDriveAction(driveState)
+        return
+      }
+
       if (driveState.action === "open") {
         showLoading(
           t("googleDrive.opening") || "Đang tải tệp từ Google Drive™..."
@@ -866,7 +878,6 @@ export function GoogleDrivePickerProvider({
       setIsDriveLoading(true)
 
       try {
-        // First try silent auth or use user gesture
         let token: string
         try {
           token = await withTimeout(

@@ -898,19 +898,17 @@ sequenceDiagram
         else Valid State Parsed
             DriveCtx->>DriveCtx: Mark state as processed in Idempotency Guard
             DriveCtx->>Browser: Synchronize RouterContext & Strip `state` (navigate /d, replace)
-            DriveCtx->>DriveCtx: showLoading("Opening / Creating with Google Drive™...")
-
-            Note over DriveCtx,AuthModal: Step 2: Resilient Silent OAuth with Timeout Wrapper
-            DriveCtx->>DriveCtx: withTimeout(getGoogleAccessToken({ prompt: "", hint: userId }), 5000)
-            alt Silent OAuth Fails OR Times Out (AdBlock / 3P Cookie Blocked / User Hint Mismatch)
-                DriveCtx->>DriveCtx: hideLoading() (Pause spinner)
-                DriveCtx->>AuthModal: Display "Sign in with Google" Prompt Dialog (with userId hint)
+            Note over DriveCtx,AuthModal: Step 2: Authentication Strategy (Cold Start vs Cached Token)
+            alt No Cached Access Token in Memory (Cold Start / First Login)
+                Note over DriveCtx,AuthModal: Fast-Path UX: Bypass 5s silent timeout delay entirely.
+                DriveCtx->>AuthModal: Display "Sign in with Google" Prompt Dialog immediately (0ms delay)
                 User->>AuthModal: Click "Sign in with Google" (Authentic User Click Gesture)
-                AuthModal->>DriveCtx: showLoading("Authenticating with Google...")
+                AuthModal->>DriveCtx: showLoading("Opening / Creating with Google Drive™...")
                 AuthModal->>GIS: withTimeout(getGoogleAccessToken({ prompt: "consent", hint: userId }), 60000)
-                GIS-->>DriveCtx: Return OAuth 2.0 Access Token
-            else Silent OAuth Succeeds within 5s
-                GIS-->>DriveCtx: Return Cached / Silent Access Token
+                GIS-->>DriveCtx: Return & Cache OAuth 2.0 Access Token
+            else Valid Access Token Cached in Memory (Subsequent Warm Calls)
+                DriveCtx->>DriveCtx: showLoading("Opening / Creating with Google Drive™...")
+                DriveCtx->>DriveCtx: Synchronously retrieve in-memory cached access token (0ms delay)
             end
 
             Note over DriveCtx,IDB: Step 3: Action Execution with Catch-All Error Handling
@@ -1010,22 +1008,20 @@ To prevent **infinite loading spinners**, **silent promise stalls**, and **race-
 
 ---
 
-##### Category B: Silent OAuth & Pop-up Blocker Risks
+##### Category B: OAuth Authentication Strategy & Pop-up Blocker Protection
 
-4. **Silent OAuth Hanging Indefinitely (`getGoogleAccessToken`)**:
-   - **Failure Vector**: Silent token acquisition (`prompt: ""`, with `hint: userId`) uses an invisible iframe and Google Identity Services (GIS) `postMessage` callbacks. The promise will **never resolve or reject** if:
-     - The GIS client script (`https://accounts.google.com/gsi/client`) is blocked by AdBlock, tracking blockers, or strict CSP policies.
-     - Third-party cookies are blocked by browser privacy mechanisms (Safari ITP, Brave Shields, Chrome Privacy Sandbox 3P cookie deprecation).
-     - The provided `hint: userId` does not match the active session in the user's browser.
+4. **Eliminating 5-Second Silent OAuth Latency on Cold Start (Fast-Path UX)**:
+   - **Failure Vector**: In cold start scenarios (first app startup via Drive state parameter), attempting silent token acquisition (`prompt: ""` with 3P cookie iframes) almost invariably stalls due to modern browser privacy defenses (3P cookie blocking, tracking protections). Waiting 5 seconds for `withTimeout` to reject causes unnecessary latency for users.
    - **Defensive Strategy**:
-     - Wrap all silent token acquisition calls with a strict timeout utility (`withTimeout(promise, 5000, "Silent OAuth timeout")`).
-     - When the timeout triggers, reject the silent flow immediately, dismiss the spinner, and display the **Sign-in Prompt Dialog** (`AlertDialog` / `AuthModal`).
+     - Check memory cache (`hasValidCachedGoogleAccessToken()`).
+     - If no valid token is present and execution was triggered on startup without a user gesture, immediately bypass the silent attempt and display the **Sign-in Prompt Dialog** (`AlertDialog` / `AuthModal`) with 0ms delay.
+     - Subsequent actions in the active session instantly reuse the in-memory cached token without prompts or delays.
 
-5. **Silent Pop-up Blocking on Unprompted Mounts**:
-   - **Failure Vector**: Calling interactive OAuth (`prompt: "consent"`) programmatically upon component mount without a direct user gesture causes modern browsers to silently block the popup window (returning `null` or suppressing the window). As a result, GIS callbacks never fire, hanging all subsequent `await` calls.
+5. **Direct User-Gesture Popup Activation**:
+   - **Failure Vector**: Calling interactive OAuth (`prompt: "consent"`) programmatically upon component mount without a direct user gesture causes modern browsers to silently block the popup window (`[GSI_LOGGER]: Failed to open popup window... Maybe blocked by the browser?`).
    - **Defensive Strategy**:
-     - Never launch interactive OAuth popups automatically on mount.
-     - When silent OAuth fails or times out, display the **Sign-in Prompt Dialog**. The user clicking `"Đăng nhập Google"` constitutes an authentic user gesture that browsers permit.
+     - Keep popup triggering strictly inside authentic user click handlers (`AlertDialogAction` onClick).
+     - Provide a generous 60-second timeout for the interactive user sign-in window (`withTimeout(..., 60000)`).
 
 ---
 

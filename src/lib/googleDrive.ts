@@ -194,6 +194,23 @@ export function setCachedGoogleAccessToken(
 }
 
 /**
+ * Check if a valid Google access token is currently cached in memory.
+ */
+export function hasValidCachedGoogleAccessToken(): boolean {
+  return !!(cachedAccessToken && Date.now() < tokenExpiresAt)
+}
+
+/**
+ * Get the currently cached Google access token if valid.
+ */
+export function getCachedGoogleAccessToken(): string | null {
+  if (cachedAccessToken && Date.now() < tokenExpiresAt) {
+    return cachedAccessToken
+  }
+  return null
+}
+
+/**
  * Download a file binary from Google Drive™ via fileId, supporting Drive Resource Keys.
  */
 export async function downloadDriveFile(
