@@ -698,5 +698,30 @@
     "guideCardTitle": "Docs & User Guide",
     "guideCardDesc": "Explore full documentation on entities, relationships, templates, and storage architecture.",
     "guideBtn": "View Guide"
+  },
+  "inAppBrowser": {
+    "title": "Open in External Browser",
+    "detectedBadge": "Opened via {{app}}",
+    "genericApp": "In-App Browser",
+    "description": "You are viewing Silic inside {{app}}'s built-in browser. In-app browsers often restrict Google Drive™ sync, offline storage, and file downloads.",
+    "recommendation": "For the best experience and full features, please open this link in Google Chrome, Safari, Edge, or your default browser.",
+    "limitationsTitle": "Features that may be restricted:",
+    "limitationDrive": "Google Drive™ sync & Google Sign-In",
+    "limitationStorage": "Offline data storage (IndexedDB)",
+    "limitationFiles": "Downloading / Uploading project files (.silic)",
+    "limitationGraph": "Graph interaction & optimal performance",
+    "openInBrowserBtn": "Open in Browser",
+    "copyLinkBtn": "Copy Link",
+    "copiedLink": "Link copied to clipboard!",
+    "copiedLinkDesc": "Paste it into Chrome, Safari, or your default browser.",
+    "openExternalError": "Could not open external browser automatically",
+    "openExternalErrorDesc": "Please use the 'Copy Link' button and paste into Chrome or Safari.",
+    "continueAnyway": "Continue viewing in app",
+    "howToOpenTitle": "How to open externally:",
+    "step1": "Tap the ⋯ (3 dots) or Share icon in the app menu.",
+    "step2": "Select \"Open in browser\" (or \"Open in Chrome / Safari\").",
+    "topBannerText": "Viewing inside {{app}}. Open in Chrome / Safari for full features.",
+    "topBannerAction": "Open in browser",
+    "topBannerClose": "Dismiss"
   }
 }

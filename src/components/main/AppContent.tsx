@@ -12,6 +12,7 @@ import MarkdownPage from "@/components/main/page/guide/MarkdownPage"
 import EntityQuerySheet from "@/components/main/queryBlocks/EntityQuerySheet"
 import PathQuerySheet from "@/components/main/queryBlocks/PathQuerySheet"
 import AnalysisPage from "@/components/main/page/AnalysisPage"
+import InAppBrowserPrompt from "@/components/main/InAppBrowserPrompt"
 import { Tabs } from "@/components/ui/tabs"
 import { Toaster } from "@/components/ui/toast"
 import { SidebarProvider } from "@/components/ui/sidebar"
@@ -119,6 +120,7 @@ export default function AppContent() {
         onValueChange={(val) => navigateTab(val as TabType)}
         className="flex min-h-screen w-full flex-col bg-background text-foreground"
       >
+        <InAppBrowserPrompt />
         <Navbar />
 
         {route.type === "landing" ? (

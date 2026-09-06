@@ -697,5 +697,30 @@
     "guideCardTitle": "Tài liệu & Hướng dẫn",
     "guideCardDesc": "Khám phá cách sử dụng đầy đủ các tính năng thực thể, quan hệ và kiến trúc dữ liệu.",
     "guideBtn": "Xem hướng dẫn"
+  },
+  "inAppBrowser": {
+    "title": "Mở bằng trình duyệt ngoài",
+    "detectedBadge": "Đang mở từ {{app}}",
+    "genericApp": "Ứng dụng khác",
+    "description": "Bạn đang mở Silic từ trình duyệt tích hợp của {{app}}. Các trình duyệt này thường bị giới hạn về tính năng đồng bộ Google Drive™, lưu trữ dữ liệu ngoại tuyến và tải tệp.",
+    "recommendation": "Để có trải nghiệm mượt mà và đầy đủ tính năng nhất, vui lòng mở trang web bằng Google Chrome, Cốc Cốc, Safari hoặc Microsoft Edge.",
+    "limitationsTitle": "Tính năng có thể bị giới hạn:",
+    "limitationDrive": "Đồng bộ Google Drive™ & Đăng nhập Google",
+    "limitationStorage": "Lưu trữ dữ liệu ngoại tuyến (IndexedDB)",
+    "limitationFiles": "Tải xuống / Tải lên tệp dự án (.silic)",
+    "limitationGraph": "Tương tác đồ thị và hiệu năng nâng cao",
+    "openInBrowserBtn": "Mở bằng trình duyệt",
+    "copyLinkBtn": "Sao chép liên kết",
+    "copiedLink": "Đã sao chép liên kết!",
+    "copiedLinkDesc": "Hãy mở Chrome, Cốc Cốc hoặc Safari và dán liên kết để tiếp tục.",
+    "openExternalError": "Không thể tự động mở trình duyệt",
+    "openExternalErrorDesc": "Vui lòng nhấn nút Sao chép liên kết và dán vào Chrome, Cốc Cốc hoặc Safari.",
+    "continueAnyway": "Tiếp tục xem trong ứng dụng",
+    "howToOpenTitle": "Hướng dẫn mở nhanh:",
+    "step1": "Chạm vào biểu tượng ⋯ (3 chấm) hoặc nút Chia sẻ ở góc màn hình.",
+    "step2": "Chọn \"Mở bằng trình duyệt\" (Open in Chrome / Safari / Browser).",
+    "topBannerText": "Bạn đang xem trên {{app}}. Hãy mở bằng Chrome / Cốc Cốc / Safari để dùng đầy đủ tính năng.",
+    "topBannerAction": "Mở trình duyệt",
+    "topBannerClose": "Đóng"
   }
 }
