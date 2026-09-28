@@ -29,11 +29,16 @@ interface GoogleIdentityGlobal {
           client_id: string
           scope: string
           hint?: string
+          prompt?: string
+          trigger_onepick?: string | boolean
           callback: (response: DriveTokenResponse) => void
+          [key: string]: unknown
         }) => {
           requestAccessToken: (overrideConfig?: {
             prompt?: string
             hint?: string
+            trigger_onepick?: string | boolean
+            [key: string]: unknown
           }) => void
         }
       }
@@ -107,6 +112,7 @@ export function loadGsiClientScript(): Promise<void> {
  */
 export async function getGoogleAccessToken(options?: {
   prompt?: "" | "consent" | "select_account"
+  trigger_onepick?: boolean | string
   forceRefresh?: boolean
   hint?: string
   timeoutMs?: number
@@ -139,10 +145,19 @@ export async function getGoogleAccessToken(options?: {
         return
       }
 
+      const promptValue =
+        options?.prompt !== undefined ? options.prompt : "consent"
+      const triggerOnepick =
+        options?.trigger_onepick !== undefined
+          ? String(options.trigger_onepick)
+          : "true"
+
       const client = google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: "https://www.googleapis.com/auth/drive.file",
         hint: options?.hint,
+        prompt: promptValue,
+        trigger_onepick: triggerOnepick,
         callback: (response: DriveTokenResponse) => {
           if (response.error) {
             reject(
@@ -165,8 +180,9 @@ export async function getGoogleAccessToken(options?: {
       })
 
       client.requestAccessToken({
-        prompt: options?.prompt !== undefined ? options.prompt : "",
+        prompt: promptValue,
         hint: options?.hint,
+        trigger_onepick: triggerOnepick,
       })
     } catch (err) {
       reject(err)

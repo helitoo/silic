@@ -75,6 +75,8 @@ export interface PickerConfiguration {
   customViews?: unknown[]
   locale?: string
   customScopes?: string[]
+  prompt?: string
+  trigger_onepick?: boolean | string
   callbackFunction: (data: PickerCallback) => unknown
 }
 
@@ -144,11 +146,16 @@ interface WindowGoogleGlobal {
           client_id: string
           scope: string
           hint?: string
+          prompt?: string
+          trigger_onepick?: string | boolean
           callback: (response: authResult) => void
+          [key: string]: unknown
         }) => {
           requestAccessToken: (overrideConfig?: {
             prompt?: string
             hint?: string
+            trigger_onepick?: string | boolean
+            [key: string]: unknown
           }) => void
         }
       }
@@ -336,9 +343,18 @@ export function useDrivePicker(): [
         const finalScopes =
           scopes.length > 0 ? scopes.join(" ") : DRIVE_FILE_SCOPE
 
+        const promptValue =
+          config.prompt !== undefined ? config.prompt : "consent"
+        const triggerOnepick =
+          config.trigger_onepick !== undefined
+            ? String(config.trigger_onepick)
+            : "true"
+
         const client = win.google.accounts.oauth2.initTokenClient({
           client_id: config.clientId,
           scope: finalScopes,
+          prompt: promptValue,
+          trigger_onepick: triggerOnepick,
           callback: (tokenResponse: authResult) => {
             if (tokenResponse?.access_token) {
               setAuthRes(tokenResponse)
@@ -360,7 +376,10 @@ export function useDrivePicker(): [
           },
         })
 
-        client.requestAccessToken()
+        client.requestAccessToken({
+          prompt: promptValue,
+          trigger_onepick: triggerOnepick,
+        })
         return true
       }
 
